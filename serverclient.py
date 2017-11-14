@@ -4,8 +4,10 @@ from collections import defaultdict
 from i2cdriver import i2c_treiber
 #from i2ccall import i2c_abruf
 
-logging.basicConfig(format='%(asctime)s %(message)s',filename='example.log',level=logging.DEBUG) #!!!!!!verzeichniss anpassen am schluss !!!!!!
-	#logging.warning('And this, too')
+logger = logging.getLogger()
+logger.setLevel(logging.ERROR)
+fh = logging.FileHandler("/net/html/i2cclient/client.log")
+logger.addHandler(fh)
 
 
 master_pfad = '/net'
@@ -25,9 +27,10 @@ werden alle daten aus dem ram gezogen
 
 '''
 i2cswitch = {'adress':0x70,'port':1} #TI-PCA9548A
-ic_list = {'name':'balkon', 'switch':1, 'sensor':1, 'num':1, 1:0x20} #anzahl I2C slaves mit adresse
+ic_list = {'host':'raspi2','name':'balkon', 'switch':1, 'sensor':1, 'num':1, 1:0x20} #anzahl I2C slaves mit adresse
 '''
 ic_list {
+'host':'name',# name vom gerät
 'name':'balkon', #name des client-server
 'switch':1, ## ist ein switch angeschlossen TI-PCA9548A
 'sensor':1, (hat dieser server-Client sensor daten zum auslesen 1. oder nur aktoren 0)
@@ -180,14 +183,14 @@ class server_coneckt:
 			jsonstring = json.dumps(transfer)
 			ret = self.sock(jsonstring)
 			if ret != '"ok"':
-				logging.error('Fehler bei install daten in Master Server')
+				logger.error('Fehler bei install daten in Master Server')
 				print (ret)
 
 	def check(self):
 	
 		verbindung = server_coneckt()
 		
-		data = {'funktion':'check','name':ic_list['name']}
+		data = {'funktion':'check','name':ic_list['name'], 'host':ic_list['host']}
 		#jsonstring = json.dumps(data)
 		antwort = json.loads(verbindung.sock(json.dumps(data))) #daten senden und holen
 		#antwort = json.loads(verbindung.sock(jsonstring))
@@ -208,7 +211,7 @@ class server_coneckt:
 		
 	def timeslice(self):
 			transfer = defaultdict(object)
-			transfer = {'funktion':'timeslice', 'name':ic_list['name']} #auszuführende Funktion im server
+			transfer = {'funktion':'timeslice', 'name':ic_list['name'], 'host':ic_list['host']} #auszuführende Funktion im server
 			transfer.update(ic_list) #funktions infos client
 			jsonstring = json.dumps(transfer)
 			ret = self.sock(jsonstring)
@@ -227,13 +230,39 @@ class server_coneckt:
 		datain = sock.recv(1024).strip()#daten empfangen und leerzeichen entfernen
 		sock.close()
 		return datain.decode('utf-8') #return daten
-
-
+	
+	def sock2(self, data):#befehl an Server senden und Rückanwort empfangen
+		
+		if 'funktion' in data:
+			json_string = json.dumps(data)
+		
+			
+			server_address = ('localhost', 5050)#server adresse
+			print('connecting to {} port {}'.format(*server_address))
+			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#art der verbingdung
+			sock.connect(server_address)#verbindung herstellen
+			sock.sendall(json_string.encode('utf8'))#befehl senden
+			datain = sock.recv(1024).strip()#daten empfangen und leerzeichen entfernen
+			sock.close()
+			try:
+				returner = json.loads(datain.decode('utf-8'))
+			except ValueError as error:
+				logger.error('Fehlerhafte daten bekommen',datain)
+				
+			return returner #return daten
+		else:
+			logger.error('keine funktion übermittelt')
+			return 'error'
 		
 def main_loop():
 	loopmaster = 0
 	while True:
 		
+		tester = server_coneckt()
+		
+		testers = {'funktion':'sensor','sensor':'new'}
+		print(tester.sock2(testers))
+		'''
 		ramm = i2c_abruf()
 		
 		tester = server_coneckt()
@@ -254,9 +283,9 @@ def main_loop():
 		
 		print (antwort)
 		
-		testers = {'funktion':'delete','name':ic_list['name']}
+		testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
 		
-		antwort = json.loads(tester.sock(json.dumps(testers)))
+		antwort = json.loads(tester.sock(json.dumps(testersa)))
 		
 		
 
@@ -264,7 +293,7 @@ def main_loop():
 		print (antwort)
 		
 		#if ram[] # hier dann sensoer
-		
+		'''
 		''' sensortester
 		
 		tester = {'funktion':'sensor','sensor':'new'}
