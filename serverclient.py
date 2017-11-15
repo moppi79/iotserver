@@ -4,6 +4,9 @@ from collections import defaultdict
 from i2cdriver import i2c_treiber
 #from i2ccall import i2c_abruf
 
+from sensors.demosensor import demo_sensor
+
+
 logger = logging.getLogger()
 logger.setLevel(logging.ERROR)
 fh = logging.FileHandler("/net/html/i2cclient/client.log")
@@ -54,6 +57,11 @@ ic_chip[1] ={'num':6,#anzahl ports
 			5:[0x12,0x04,'heizung','Heizung','0'],#IRLZ schalter - heizung für regensensor
 			6:[0x12,0x08,'Heartbeat','led','0'],#LED heartbeat
 			}
+sensordic = defaultdict(object)		
+			
+sensordic = {1:[0x99,'options',demo_sensor(),'temperatur/feuchtigkeit'],
+			2:[0xa0,'options',demo_sensor(),'licht'],
+}
 			
 ram = defaultdict(object)
 ram = {}
@@ -180,8 +188,9 @@ class server_coneckt:
 			for x in ic_chip:
 				transfer[x] = ic_chip[x] #aktorenliste
 		
-			jsonstring = json.dumps(transfer)
-			ret = self.sock(jsonstring)
+			#jsonstring = json.dumps(transfer)
+			#ret = self.sock(jsonstring)
+			ret = self.sock2(transfer)
 			if ret != '"ok"':
 				logger.error('Fehler bei install daten in Master Server')
 				print (ret)
@@ -192,7 +201,8 @@ class server_coneckt:
 		
 		data = {'funktion':'check','name':ic_list['name'], 'host':ic_list['host']}
 		#jsonstring = json.dumps(data)
-		antwort = json.loads(verbindung.sock(json.dumps(data))) #daten senden und holen
+		#antwort = json.loads(verbindung.sock(json.dumps(data))) #daten senden und holen
+		antwort = verbindung.sock2(data)
 		#antwort = json.loads(verbindung.sock(jsonstring))
 		print (antwort)
 		
@@ -213,11 +223,11 @@ class server_coneckt:
 			transfer = defaultdict(object)
 			transfer = {'funktion':'timeslice', 'name':ic_list['name'], 'host':ic_list['host']} #auszuführende Funktion im server
 			transfer.update(ic_list) #funktions infos client
-			jsonstring = json.dumps(transfer)
-			ret = self.sock(jsonstring)
+			#jsonstring = json.dumps(transfer)
+			#ret = self.sock(jsonstring)
 			
-			umwandel = json.loads(ret)
-			
+			#umwandel = json.loads(ret)
+			umwandel = self.sock2(transfer)
 			return (umwandel)
 			
 	def sock(self, data):#befehl an Server senden und Rückanwort empfangen
@@ -258,11 +268,8 @@ def main_loop():
 	loopmaster = 0
 	while True:
 		
-		tester = server_coneckt()
 		
-		testers = {'funktion':'sensor','sensor':'new'}
-		print(tester.sock2(testers))
-		'''
+		
 		ramm = i2c_abruf()
 		
 		tester = server_coneckt()
@@ -272,35 +279,44 @@ def main_loop():
 		
 		
 		
-		print (tester.timeslice())
+		#print (tester.timeslice())
 		
-		print(ram)	
+		#print(ram)	
+
+		#tester.check()
 		
-		testers = {'funktion':'sensor','sensor':'new'}
+		#print (ram['sensor'])
 		
-		antwort = json.loads(tester.sock(json.dumps(testers)))
+		if ram['sensor'] != 0:
+			data = {'funktion':'sensor','sensor':'start', 'target_key':ram['sensor'], 'name':ic_list['name'], 'host':ic_list['host']}
+			while True:
+				
+				antwort = tester.sock2(data)
+				
+				if antwort == 'go':
+					
+					deliver = {'funktion':'sensor','sensor':'deliver', 'target_key':ram['sensor'], 'name':ic_list['name'], 'host':ic_list['host']}
+					deliver['werte'] = {}
+					'''
+					sensordic = {1:[0x99,demo_sensor(),'name','temperatur/feuchtigkeit'],
+								2:[0xa0,demo_sensor(),'name','licht'],
+					'''
+					
+					for x in sensordic:
+						deliver['werte'][x] = {}
+						xx = sensordic[x][2]
 		
-		
-		print (antwort)
-		
-		testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
-		
-		antwort = json.loads(tester.sock(json.dumps(testersa)))
-		
+						deliver['werte'][x] = xx.out(sensordic[x][0],sensordic[x][1])
+						
+					tester.sock2(deliver)
+
+					break
+				else:
+					
+					time.sleep(0.05)
+				
 		
 
-		
-		print (antwort)
-		
-		#if ram[] # hier dann sensoer
-		'''
-		''' sensortester
-		
-		tester = {'funktion':'sensor','sensor':'new'}
-		jsonstring = json.dumps(tester)
-		print (test.sock(jsonstring))
-		
-		'''
 		#print (test.timeslice())
 		
 		
@@ -317,11 +333,15 @@ def main_loop():
 		##siehe tester.py für mehr alten kram
 		
 		#print (loopmaster)
-		time.sleep(0.01)
+		time.sleep(0.1)
 		loopmaster += 1
-		if loopmaster > 1000:
+		if loopmaster > 100:
+			testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
+		
+			antwort = json.loads(tester.sock(json.dumps(testersa)))
+			
 			break #zum solo testen muss am schluss entfernt werden
-		break #muss zum ende entfernt werden
+		#break #muss zum ende entfernt werden
 
 
 
