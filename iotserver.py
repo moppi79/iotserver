@@ -52,12 +52,12 @@ class sensor():#sensorabfrage classe
 		if data['sensor'] == 'new':
 			
 			newkey = self.new(data)
-			logging.error(newkey)
+			logging.debug(newkey)
 			sensor_ram[newkey] = {}
 			sensor_ram[newkey]['all_client'] = 0
 			#logging.error(json.dumps(sensor_ram))
 			for x in variable: #x ist name vom client
-				logging.error('for')
+				logging.debug('for')
 				sensor_ram[newkey] = {} #container erstellen
 				for y in variable[x]:
 					sensor_ram[newkey][x] = {} #container erstellen
@@ -67,42 +67,83 @@ class sensor():#sensorabfrage classe
 						variable[x][y]['update'] = 1
 						variable[x][y]['stop'] = 1
 						sensor_ram[newkey][x][y]['abgeholt'] = 0
+						ram[newkey] = 0
 					
 			#logging.error(json.dumps(variable))
 			return (newkey)
 		
 		if data['sensor'] == 'start': #Client muss antworten mir sensort:start, target_key:xxxxxxxx, name:client_name
 			'''
-			Client muss antworten mir sensor:start, target_key:xxxxxxxx, name:client_name
+			Client muss antworten mir sensor:start, target_key:xxxxxxxx, name:client_name, host:name
 			antworten sind, "go" "wait"
 			'''
+			retuerner = 'fail'
+
 			if sensor_ram[data['target_key']][data['host']][data['name']]['abgeholt'] == 0:
 				sensor_ram[data['target_key']][data['host']][data['name']]['abgeholt'] = 1 #auf abgeholt setzen
-				variable[data['host']]['name']['sensor'] = 0 #wieder auf 0 setzen 
+				variable[data['host']][data['name']]['sensor'] = 0 #wieder auf 0 setzen 
+				logging.error('if abfrage')
 			
 			checker = {0:0, 1:0, 2:0, 3:0}#variable vorerstellen 0 noch kein target key, 1 key erhalten (wartet), 2(key erhalten ermittelt sensor daten), 3 Daten geliefert)
 			
-			for x,value in sensor_ram[data['target_key']][data['host']]:
-				checker[value] = checker[value] + 1
-			
+			for x in sensor_ram[data['target_key']][data['host']]:
+				checker[sensor_ram[data['target_key']][data['host']][x]['abgeholt']] = checker[sensor_ram[data['target_key']][data['host']][x]['abgeholt']] + 1
+
 			if checker[2] == 0:
 				
 				sensor_ram[data['target_key']][data['host']][data['name']]['abgeholt'] = 2 #holt nun date
-				return ('go')
-			
+				retuerner = 'go'
+				logging.debug('go signal ')
 			else:
+				logging.debug('wait signal')
+				retuerner ='wait'
 				
-				return ('wait')
+			return (retuerner) 
 		
 		if data['sensor'] == 'deliver':	#sensordaten empfangen
 			'''
 			Client muss antworten mir sensor:deliver, target_key:xxxxxxxx, name:client_name, host:hostname, werte:{}
 			antwort ist immer 'ok'
 			'''
+			
 			sensor_ram[data['target_key']][data['host']][data['name']] = data['werte']
 			sensor_ram[data['target_key']][data['host']][data['name']]['abgeholt'] = 3 #auf geliefert gesetzt
 			variable[data['host']][data['name']]['stop'] = 1
 			variable[data['host']][data['name']]['update'] = 1
+			ifabgeholtgleich3 = 0
+			vergleich = 0
+			for x in sensor_ram[data['target_key']]:
+				for y in sensor_ram[data['target_key']][x]:
+					vergleich = vergleich + 1
+					if sensor_ram[data['target_key']][x][y]['abgeholt'] == 3:
+						ifabgeholtgleich3 = ifabgeholtgleich3 + 1
+					
+						
+				
+			if ifabgeholtgleich3 == vergleich:
+				ram[data['target_key']] = 1
+				for x in variable: #x ist name vom client
+					logging.debug('for')
+					
+					for y in variable[x]:
+						
+						if ram[x][y]['sensor'] == 1: #suche ob client Sensoren hat
+							
+							variable[x][y]['sensor'] = 0
+							variable[x][y]['update'] = 1
+							variable[x][y]['stop'] = 0
+				
+			logging.error(json.dumps(sensor_ram))
+			logging.error(json.dumps(variable))
+		
+			return ('ok') 
+		
+		if data['sensor'] == 'return':
+			if ram[data['target_key']] == 1:
+				return (sensor_ram[data['target_key']]) 
+			else:
+				return('wait')
+			
 			
 		
 	def new(self,data):#erstellen von schlüssel für sensor
@@ -226,6 +267,7 @@ class server():
 		elif umwandel['funktion'] == 'timeslice':
 			logging.error('timeslicer_funk')
 			logging.error(json.dumps(timeschlitz[umwandel['host']][int(variable[umwandel['host']][umwandel['name']]['timeslot'])]))
+			variable[umwandel['host']][umwandel['name']]['tsupdate'] = 0
 			returner = json.dumps(timeschlitz[umwandel['host']][int(variable[umwandel['host']][umwandel['name']]['timeslot'])])
 			
 			return returner
