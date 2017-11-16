@@ -1,7 +1,7 @@
-cimport daemon, os, time, sys, signal, lockfile, daemon.pidfile, socket, logging, datetime, json, random
+import daemon, os, time, sys, signal, lockfile, daemon.pidfile, socket, logging, datetime, json, random
 
 from collections import defaultdict
-from i2cdriver import i2c_treiber
+from module.i2c_driver import i2c_treiber
 #from i2ccall import i2c_abruf
 
 from sensors.demosensor import demo_sensor
@@ -52,13 +52,14 @@ ic_chip[1] ={'icname':'mcp23017',
 			100:[0x00,0x00,0x12], #adresse der bank, start wert, export register MCP23017
 			101:[0x01,0xff,0x13], #adresse der bank, start wert, export register MCP23017 1 in 0 out
 			#1:[0x12,0x01,'aktor','beschreibung',1,[ziel bei schalter]], #register,startwert,typ,beschreibung,'fürwebseite Schaltbar' ("0"nein, "1"ja)optionaler wert für schalter
+			'pins':{
 			1:[0x12,0x01,'aktor','Aussen beleuchtung','1'],#IRLZ-relay. aussenbeläuchtung
 			2:[0x13,0x01,'on_off','Schalter draussen','0',[0x12,0x01]], #Schalter für aussenbleuchtung draussen
 			3:[0x12,0x02,'aktor','LED','0'],#LED signal lampe draussen
 			4:[0x13,0x02,'regen','Regensensor','0',[0x12,0x04]],#erkennung Regensensor
 			5:[0x12,0x04,'heizung','Heizung','0'],#IRLZ schalter - heizung für regensensor
 			6:[0x12,0x08,'Heartbeat','led','0'],#LED heartbeat
-			}
+			}}
 			
 sensordic = defaultdict(object)		
 			
@@ -79,7 +80,8 @@ class i2c_abruf:
 		else:
 			for x in ic_chip:
 				classcall = ic_class[ic_chip[x]['icname']]
-				print (classcall.install('data'))
+				print (classcall.install(ic_chip[x], x))
+				#print (classcall.install(ic_chip[x]), 1)
 				
 				
 class server_coneckt:
