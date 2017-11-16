@@ -1,55 +1,62 @@
 import daemon, os, time, sys, signal, lockfile, daemon.pidfile, socket, logging, datetime, json, random
 
-class mcp23017():	
-	def install(self,data):
-		return ('lala',data)
-
+from module.i2c_driver import i2c_treiber
 '''
 class mcp23017():	
 	def install(self,data):
+		return ('lala',data)
+		
+	Standart Variable
+	
+	ic_chip[1] ={'icname':'mcp23017',
+			'adresse':0x20,
+			'num':6,#anzahl ports
+			'bank':2,#anzahl banken
+			'pins':8,#anzahlpins
+			100:[0x00,0x00,0x12], #adresse der bank, start wert, export register MCP23017
+			101:[0x01,0xff,0x13], #adresse der bank, start wert, export register MCP23017 1 in 0 out
+			#1:[0x12,0x01,'aktor','beschreibung',1,[ziel bei schalter]], #register,startwert,typ,beschreibung,'fürwebseite Schaltbar' ("0"nein, "1"ja)optionaler wert für schalter
+			pins:{
+			1:[0x12,0x01,'aktor','Aussen beleuchtung','1'],#IRLZ-relay. aussenbeläuchtung
+			2:[0x13,0x01,'on_off','Schalter draussen','0',[0x12,0x01]], #Schalter für aussenbleuchtung draussen
+			3:[0x12,0x02,'aktor','LED','0'],#LED signal lampe draussen
+			4:[0x13,0x02,'regen','Regensensor','0',[0x12,0x04]],#erkennung Regensensor
+			5:[0x12,0x04,'heizung','Heizung','0'],#IRLZ schalter - heizung für regensensor
+			6:[0x12,0x08,'Heartbeat','led','0'],#LED heartbeat
+			}}
+		
+'''
+
+class mcp23017():	
+	def install(self,config,number):
 
 			looplist = 0 #ic loop
 			loopbank = 0 #register bank Loop
 			loopchip = 0 #ic Pin Loop
-								
-			while looplist < ic_list['num']:
-				looplist += 1
-
-				ic2 = i2c_treiber(ic_list[looplist]) #verbfung zum IC aufbauen
-				
-				#bank while für start werte install
-				while loopbank < ic_chip[looplist]['bank']:
-					bankcount = 100 + loopbank
-					wert = (self.ramlokation(ic_list[looplist], ic_chip[looplist][bankcount][0], bankcount))#wert im speicher IC adresse, Bank programmier adresse, bank nummer im ic_chip array
-					ram.update({wert:ic_chip[looplist][bankcount][1]})
-					wert = (self.ramlokation(ic_list[looplist], ic_chip[looplist][bankcount][2], 'value')) #der immer zu sehende Bank wert beim auslesen
-					ram.update({wert:0})
-					loopbank += 1
-					ic2.write(ic_chip[looplist][bankcount][0],ic_chip[looplist][bankcount][1]) #IC speicher schreiben
-					loopblank = 0
-					blankintern = 1
+			#return_var = defaultdict(object)
+			return_var={}
+			return_var[config['icname']] = {}
+			return_var[config['icname']][number] = {}
+			return_var[config['icname']][number]['bank'] = {}
+			return_var[config['icname']][number]['pin'] = {}
 			
-					while loopblank < ic_chip[looplist]['pins']:#Für jeden pin in der bank einen blanko array punkt erstellen
-						wert = (self.ramlokation(ic_list[looplist], blankintern, ic_chip[looplist][bankcount][2]))#IC adresse, Pin, Bank
-						ram.update({wert:0}) #soll wert, wenn anders muss funktion ausgeführt werden
-						chache = wert + 'chache' #zwischenspeicher für einzel funktionen,
-						ram.update({chache:0})
-						funktion = wert + 'funktion'
-						ram.update({funktion:0}) #hier array adresse für funktion
-						blankintern = blankintern * 2
-						loopblank += 1
-
-				while loopchip < ic_chip[looplist]['num']:
-					wert=0
-					#print (ic_chip[looplist][1]
-					loopchip += 1 
-					wert = (self.ramlokation(ic_list[looplist], ic_chip[looplist][loopchip][1], ic_chip[looplist][loopchip][0])) #wert im speicher: IC adresse, Pin speicher wert, bank ausgabe
-					ram[wert]= loopchip #hinterlegte funktion im array 
-					
-	
-				loopchip = 0 #reset vom IC-Pin loop
-				ic2.close() #verbindung schliessen 			
-
+			return_var[config['icname']][number]['bank']['100'] = config[100][1] #der zu vergleichende speicher
+			return_var[config['icname']][number]['bank']['101'] = config[101][1] #der zu vergleichede speicher
+			
+			for x in config['pins']:
+				return_var[config['icname']][number]['pin'][x] = {}
+				return_var[config['icname']][number]['pin'][x]['value'] = 0
+				return_var[config['icname']][number]['pin'][x]['chache'] = 0
+			
+			
+			
+			ic2 = i2c_treiber(config['adresse'])
+			ic2.write(config[100][0],return_var[config['icname']][number]['bank']['100'])
+			ic2.write(config[101][0],return_var[config['icname']][number]['bank']['101'])
+			ic2.close() #verbindung schliessen 
+			
+			return (return_var)
+		
 	
 	def ramlokation (self, slaveadress, dictorylokation, bank): #zum berechnen der postion im ram jedes einzelen aktoren
 		return str(slaveadress) + str(dictorylokation) + str(bank)
@@ -106,4 +113,3 @@ class mcp23017():
 					print (chip_array)
 			
 			ic2.close()
-'''
