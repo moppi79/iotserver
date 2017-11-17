@@ -15,14 +15,14 @@ class mcp23017():
 			'pins':8,#anzahlpins
 			100:[0x00,0x00,0x12], #adresse der bank, start wert, export register MCP23017
 			101:[0x01,0xff,0x13], #adresse der bank, start wert, export register MCP23017 1 in 0 out
-			#1:[0x12,0x01,'aktor','beschreibung',1,[ziel bei schalter]], #register,startwert,typ,beschreibung,'fürwebseite Schaltbar' ("0"nein, "1"ja)optionaler wert für schalter
+			#1:[0x12,0x01,'in/out','aktor','beschreibung',1,[ziel bei schalter]], #register,startwert,Direction,typ,beschreibung,'fürwebseite Schaltbar' ("0"nein, "1"ja)optionaler wert für schalter
 			pins:{
-			1:[0x12,0x01,'aktor','Aussen beleuchtung','1'],#IRLZ-relay. aussenbeläuchtung
-			2:[0x13,0x01,'on_off','Schalter draussen','0',[0x12,0x01]], #Schalter für aussenbleuchtung draussen
-			3:[0x12,0x02,'aktor','LED','0'],#LED signal lampe draussen
-			4:[0x13,0x02,'regen','Regensensor','0',[0x12,0x04]],#erkennung Regensensor
-			5:[0x12,0x04,'heizung','Heizung','0'],#IRLZ schalter - heizung für regensensor
-			6:[0x12,0x08,'Heartbeat','led','0'],#LED heartbeat
+			1:[0x12,0x01,'out','aktor','Aussen beleuchtung','1'],#IRLZ-relay. aussenbeläuchtung
+			2:[0x13,0x01,'in','on_off','Schalter draussen','0',[0x12,0x01]], #Schalter für aussenbleuchtung draussen
+			3:[0x12,0x02,'out','aktor','LED','0'],#LED signal lampe draussen
+			4:[0x13,0x02,'in','regen','Regensensor','0',[0x12,0x04]],#erkennung Regensensor
+			5:[0x12,0x04,'out','heizung','Heizung','0'],#IRLZ schalter - heizung für regensensor
+			6:[0x12,0x08,'out','Heartbeat','led','0'],#LED heartbeat
 			}}
 		
 '''
@@ -35,51 +35,97 @@ class mcp23017():
 			loopchip = 0 #ic Pin Loop
 			#return_var = defaultdict(object)
 			return_var={}
-			return_var[config['icname']] = {}
-			return_var[config['icname']][number] = {}
-			return_var[config['icname']][number]['bank'] = {}
-			return_var[config['icname']][number]['pin'] = {}
+			return_var['adress'] = config['adresse']
+			return_var['bank'] = {}
+			return_var['pin'] = {}
 			
-			return_var[config['icname']][number]['bank']['100'] = config[100][1] #der zu vergleichende speicher
-			return_var[config['icname']][number]['bank']['101'] = config[101][1] #der zu vergleichede speicher
+			return_var['bank'][config[100][2]] = config[100][1] #der zu vergleichende speicher
+			return_var['bank'][config[101][2]] = config[101][1] #der zu vergleichede speicher
+			
+			numberwhile = 1
+			
+			while numberwhile <= 128:
+				bank1 = self.ramlokation(config['adresse'],numberwhile,config[100][2])
+				bank2 = self.ramlokation(config['adresse'],numberwhile,config[101][2])
+				
+				#print (bank1)
+				return_var['pin'][bank1] = {}
+				return_var['pin'][bank2] = {}
+				return_var['pin'][bank1]['exist'] = 0
+				return_var['pin'][bank2]['exist'] = 0
+				
+				numberwhile = numberwhile * 2
+			
 			
 			for x in config['pins']:
-				return_var[config['icname']][number]['pin'][x] = {}
-				return_var[config['icname']][number]['pin'][x]['value'] = 0
-				return_var[config['icname']][number]['pin'][x]['chache'] = 0
-			
+				
+				ownlokation = self.ramlokation(config['adresse'],config['pins'][x][1],config['pins'][x][0])
+				
+				return_var['pin'][ownlokation]['value'] = 0
+				return_var['pin'][ownlokation]['chache'] = 0
+				return_var['pin'][ownlokation]['exist'] = 1
+				return_var['pin'][ownlokation]['config'] = {}
+				return_var['pin'][ownlokation]['config'] = config['pins'][x]
 			
 			
 			ic2 = i2c_treiber(config['adresse'])
-			ic2.write(config[100][0],return_var[config['icname']][number]['bank']['100'])
-			ic2.write(config[101][0],return_var[config['icname']][number]['bank']['101'])
+			ic2.write(config[100][0],return_var['bank'][config[100][2]])
+			ic2.write(config[101][0],return_var['bank'][config[101][2]])
 			ic2.close() #verbindung schliessen 
 			
 			return (return_var)
 		
 	
-	def ramlokation (self, slaveadress, dictorylokation, bank): #zum berechnen der postion im ram jedes einzelen aktoren
-		return str(slaveadress) + str(dictorylokation) + str(bank)
+	def ramlokation (self, slaveadress, pin, bank): #zum berechnen der postion im ram jedes einzelen aktoren
+		return str(slaveadress) + str(pin) + str(bank)
 		
 	def integertobyte (self,wert): #den Hex wert aus der bank in einen 8 bit array umschreiben
-		array = [i for i in range(9)]
+		array = {}
 		count = 128;
 		count2 = 8
 		while count2 > 0:
 			new = wert - count
 				
 			if new < 0:
-				array[count2] = 0			
+				array[int(count)] = 0			
 			elif new == 0:
 				wert = 0
-				array[count2] = 1
+				array[int(count)] = 1
 			else:
-				array[count2] = 1
+				array[int(count)] = 1
 				wert = new
 			
 			count = count / 2
 			count2 -= 1
 		return(array)		
+
+
+	def comparison (self,ram):
+		
+		ic2 = i2c_treiber(ram['adress']) 
+		
+		for x in ram['bank']:
+			
+			data = ic2.read(int(x))
+			
+			byteinarray = (self.integertobyte(data[1]))
+			
+			
+			for y in byteinarray:
+				if ram['pin'][self.ramlokation(ram['adress'],y,x)]['exist'] == 1:
+					#print('vorhanden')
+					gg = 0
+				else:
+					#print('toter pin')
+					gg = 0
+		
+		ic2.close() 
+		
+		return('abfrage')
+		
+		
+	
+
 
 	def abgleich (self): # fragt die bänke ab und vergleicht es mit dem Ram abbild um veränderungen festzustellen
 		looplist = 0 #ic loop

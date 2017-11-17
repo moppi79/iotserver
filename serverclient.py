@@ -53,14 +53,15 @@ ic_chip[1] ={'icname':'mcp23017',
 			101:[0x01,0xff,0x13], #adresse der bank, start wert, export register MCP23017 1 in 0 out
 			#1:[0x12,0x01,'aktor','beschreibung',1,[ziel bei schalter]], #register,startwert,typ,beschreibung,'fürwebseite Schaltbar' ("0"nein, "1"ja)optionaler wert für schalter
 			'pins':{
-			1:[0x12,0x01,'aktor','Aussen beleuchtung','1'],#IRLZ-relay. aussenbeläuchtung
-			2:[0x13,0x01,'on_off','Schalter draussen','0',[0x12,0x01]], #Schalter für aussenbleuchtung draussen
-			3:[0x12,0x02,'aktor','LED','0'],#LED signal lampe draussen
-			4:[0x13,0x02,'regen','Regensensor','0',[0x12,0x04]],#erkennung Regensensor
-			5:[0x12,0x04,'heizung','Heizung','0'],#IRLZ schalter - heizung für regensensor
-			6:[0x12,0x08,'Heartbeat','led','0'],#LED heartbeat
+			1:[0x12,0x01,'out','aktor','Aussen beleuchtung','1'],#IRLZ-relay. aussenbeläuchtung
+			2:[0x13,0x01,'in','on_off','Schalter draussen','0',[0x12,0x01]], #Schalter für aussenbleuchtung draussen
+			3:[0x12,0x02,'out','aktor','LED','0'],#LED signal lampe draussen
+			4:[0x13,0x02,'in','regen','Regensensor','0',[0x12,0x04]],#erkennung Regensensor
+			5:[0x12,0x04,'out','heizung','Heizung','0'],#IRLZ schalter - heizung für regensensor
+			6:[0x12,0x08,'out','Heartbeat','led','0'],#LED heartbeat
 			}}
-			
+
+
 sensordic = defaultdict(object)		
 			
 sensordic = {1:[0x99,'options',demo_sensor(),'temperatur/feuchtigkeit'],
@@ -78,12 +79,40 @@ class i2c_abruf:
 		if 'firstrun' in ram:
 			ram['firstrun'] = 1 #platzhalter
 		else:
+			ram['firstrun'] = 1
+			
+			for x in ic_chip: ##Declare all ic Dic
+				ram[ic_chip[x]['icname']] = {}
+			
 			for x in ic_chip:
 				classcall = ic_class[ic_chip[x]['icname']]
-				print (classcall.install(ic_chip[x], x))
-				#print (classcall.install(ic_chip[x]), 1)
+				
+				ram[ic_chip[x]['icname']][x] = {}
+				ram[ic_chip[x]['icname']][x].update(classcall.install(ic_chip[x], x))
 				
 				
+	
+	def comparison(self):
+		
+		for x in ic_chip:
+			classcall = ic_class[ic_chip[x]['icname']]
+			print (classcall.comparison(ram[ic_chip[x]['icname']][x]))
+			
+			
+	def switch(self): ##switch schalten
+		
+		switch = i2c_treiber(i2cswitch['adress']) 
+		zustand = switch.readswitch()
+		
+		if zustand[1] == 99: #wenn switch nicht mehr erreichbar ist, programm termination
+			logging.error('Switch nicht erreichbar')
+			
+		
+		if zustand[1] != i2cswitch['port']: #hier muss drin ste
+			switch.write(0x00,i2cswitch['port'])
+		switch.close()
+		
+		
 class server_coneckt:
 	
 	def __init__(self):
@@ -176,31 +205,46 @@ class server_coneckt:
 		
 def main_loop():
 	loopmaster = 0
+	secondloop = 0
+	loopspeed = 1
+	loopcounter = 0
 	while True:
-
-		ramm = i2c_abruf()
+		now = datetime.datetime.now()
+		start = now.microsecond
+		print (start)
+		
+		now = datetime.datetime.now()
+		print (now.microsecond)
+		
+		if secondloop != now.second:
+			secondloop = now.second
+			print ('loopcounter {}'.format(loopcounter))
+			loopcounter = 0
+			
+		'''
+		i2ccall = i2c_abruf()
+		
+		i2ccall.comparison()
 		
 		tester = server_coneckt()
 		
 		tester.check()
+		#i2ccall.switch()
+		#print(ram)
 		
-		print(ram)
-		
-		if ram['sensor'] != 0:
+		if ram['sensor'] != 0: #wenn der Server alle Sensort daten will. (system steh dann auf stop)
 			data = {'funktion':'sensor','sensor':'start', 'target_key':ram['sensor'], 'name':ic_list['name'], 'host':ic_list['host']}
 			while True:
 				
 				antwort = tester.sock2(data)
 				
-				if antwort == 'go':
+				if antwort == 'go': ## wenn server go gibt da
+					
+					i2ccall.switch()#switch schalten
 					
 					deliver = {'funktion':'sensor','sensor':'deliver', 'target_key':ram['sensor'], 'name':ic_list['name'], 'host':ic_list['host']}
 					deliver['werte'] = {}
-					
-					#sensordic = {1:[0x99,demo_sensor(),'name','temperatur/feuchtigkeit'],
-					#		#	2:[0xa0,demo_sensor(),'name','licht'],
-					
-					
+
 					for x in sensordic:
 						deliver['werte'][x] = {}
 						xx = sensordic[x][2]
@@ -213,22 +257,27 @@ def main_loop():
 				else:
 					
 					time.sleep(0.05)
-				
-		
+		'''		
+		now = datetime.datetime.now()
+		stop = now.microsecond
+		print (now.second)
+		run = stop - start
+		print ((run/100000))
 		#print (loopmaster)
-		time.sleep(0.1)
+		time.sleep(0.03)
 		loopmaster += 1
+		loopcounter += 1
 		if loopmaster > 100:
-			testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
+			#testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
 		
-			antwort = json.loads(tester.sock(json.dumps(testersa)))
+			#antwort = json.loads(tester.sock(json.dumps(testersa)))
 			
 			break #zum solo testen muss am schluss entfernt werden
 		
-		testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
+		#testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
 		
-		antwort = json.loads(tester.sock(json.dumps(testersa)))
-		break #muss zum ende entfernt werden
+		#antwort = json.loads(tester.sock(json.dumps(testersa)))
+		#break #muss zum ende entfernt werden
 
 
 
