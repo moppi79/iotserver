@@ -12,11 +12,18 @@ class i2c_treiber:
 		fcntl.ioctl(self.wr, I2C_SLAVE, adresse)#Bus verbindung herstelen
 		fcntl.ioctl(self.rd, I2C_SLAVE, adresse)#Bus verbindung herstellen
 	
-	def write (self, bank, werte): #schreiben Slave, Slave Register, Zu seztender wert
-		try:
-			self.wr.write(bytearray([bank,werte]))#in bus schreiben
-		except :
-			logging.warning('Fehler in i2c_treiber/write')
+	def write (self, bank, werte): #schreiben Slave, Slave Register, Zu seztender wert 'zero' wert bei sensoren die ohne bank ansprechbar sind.
+		if bank == 'zero':
+			try:
+				self.wr.write(bytearray([werte]))#in bus schreiben
+			except :
+				logging.warning('Fehler in i2c_treiber/write')
+			
+		else:
+			try:
+				self.wr.write(bytearray([bank,werte]))#in bus schreiben
+			except :
+				logging.warning('Fehler in i2c_treiber/write')
 	
 	def read (self, bank):#lesen Slave, slave register
 		self.wr.write(bytearray([bank]))#in den bus schreiben

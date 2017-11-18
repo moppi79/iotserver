@@ -107,16 +107,20 @@ class mcp23017():
 		for x in ram['bank']:
 			
 			data = ic2.read(int(x))
+			#print(data[0])
+			byteinarray = (self.integertobyte(data[0]))
 			
-			byteinarray = (self.integertobyte(data[1]))
-			
-			
+			print(data)
+			print (byteinarray)
 			for y in byteinarray:
+				
 				if ram['pin'][self.ramlokation(ram['adress'],y,x)]['exist'] == 1:
-					#print('vorhanden')
+					if ram['pin'][self.ramlokation(ram['adress'],y,x)]['value'] != byteinarray[y]:
+						print ("tu was")
 					gg = 0
 				else:
-					#print('toter pin')
+					#if ram['pin'][self.ramlokation(ram['adress'],y,x)]['value'] != byteinarray[y]:
+					print ("tu was toter pin")
 					gg = 0
 		
 		ic2.close() 
