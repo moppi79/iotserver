@@ -46,7 +46,7 @@ ic_chip = defaultdict(object)
 
 ic_chip[1] ={'icname':'mcp23017',
 			'adresse':0x20,
-			'num':6,#anzahl ports
+			'num':7,#anzahl ports
 			'bank':2,#anzahl banken
 			'pins':8,#anzahlpins
 			100:[0x00,0x00,0x12], #adresse der bank, start wert, export register MCP23017
@@ -59,6 +59,7 @@ ic_chip[1] ={'icname':'mcp23017',
 			4:[0x13,0x02,'in','regen','Regensensor','0',[0x12,0x04]],#erkennung Regensensor
 			5:[0x12,0x04,'out','heizung','Heizung','0'],#IRLZ schalter - heizung für regensensor
 			6:[0x12,0x08,'out','Heartbeat','led','0'],#LED heartbeat
+			7:[0x12,0x40,'in','on_off','Schalter draussen','0',[0x12,0x01]],
 			}}
 
 
@@ -207,21 +208,22 @@ def main_loop():
 	loopmaster = 0
 	secondloop = 0
 	loopspeed = 1
-	loopcounter = 0
+	loopcounter = 1
 	while True:
+		########### Loop Time Management head #############
 		now = datetime.datetime.now()
 		start = now.microsecond
 		print (start)
-		
-		now = datetime.datetime.now()
-		print (now.microsecond)
-		
-		if secondloop != now.second:
+
+		if secondloop != now.second: #every new second
 			secondloop = now.second
-			print ('loopcounter {}'.format(loopcounter))
+			#print ('loopcounter {} / loopspeed{} = {}'.format(loopcounter,loopspeed,(int(loopspeed/loopcounter))))
+			speed = (int(1000000 - (int(loopspeed/loopcounter))*10)/10)/1000000
+			loopspeed = 0
 			loopcounter = 0
-			
-		'''
+		
+		########### Loop Time Management head END#############
+		
 		i2ccall = i2c_abruf()
 		
 		i2ccall.comparison()
@@ -257,20 +259,24 @@ def main_loop():
 				else:
 					
 					time.sleep(0.05)
-		'''		
+				
+		
+		########### Loop Time Management foot #############
 		now = datetime.datetime.now()
 		stop = now.microsecond
-		print (now.second)
 		run = stop - start
-		print ((run/100000))
-		#print (loopmaster)
-		time.sleep(0.03)
-		loopmaster += 1
+		if run < 0: #start Stop Between zwo seconds 
+			run2 = 1000000 - start
+			run = run2 + stop
+		time.sleep(speed)# calculated Sleep
+		loopspeed += run
 		loopcounter += 1
+		########### Loop Time Management Foot #############
+		loopmaster += 1
 		if loopmaster > 100:
-			#testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
+			testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
 		
-			#antwort = json.loads(tester.sock(json.dumps(testersa)))
+			antwort = json.loads(tester.sock(json.dumps(testersa)))
 			
 			break #zum solo testen muss am schluss entfernt werden
 		
