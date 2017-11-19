@@ -1,6 +1,6 @@
 import os, time, sys, signal, io, fcntl, sys, array
 
-from i2c_driver import i2c_treiber
+#from i2c_driver import i2c_treiber
 
 class htu21d():
 	
@@ -47,5 +47,5 @@ class htu21d():
 
 
 
-test = htu21d()
-print (test.out(0x40,0))
+#test = htu21d()
+#print (test.out(0x40,0))

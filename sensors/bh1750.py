@@ -1,15 +1,15 @@
 import os, time, sys, signal
 
-from i2c_driver import i2c_treiber
+#from i2c_driver import i2c_treiber
 
 class bh1750():
 	
 	def out(self,adresse,speicher):
 		
 		i2c = i2c_treiber(adresse)
-		i2c.write('zero',0x01) #sensor sleep
-		data = i2c.write('zero',0x21) #sensor wake up
-		time.sleep(0.20) # sensor warm up
+		i2c.write('zero',0x01) #sensor wacke up
+		data = i2c.write('zero',0x21) #sensor start
+		time.sleep(0.20) # sensor colecting
 		data = i2c.read(0x21) #sensor read out
 		
 		i2c.write('zero',0x00) #sensor sleep
@@ -23,5 +23,5 @@ class bh1750():
 
 
 
-test = bh1750()
-print (test.out(0x23,0))
+#test = bh1750()
+#print (test.out(0x23,0))
