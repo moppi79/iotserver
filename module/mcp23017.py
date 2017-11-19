@@ -30,51 +30,53 @@ class mcp23017():
 class mcp23017():	
 	def install(self,config,number):
 
-			looplist = 0 #ic loop
-			loopbank = 0 #register bank Loop
-			loopchip = 0 #ic Pin Loop
-			#return_var = defaultdict(object)
-			return_var={}
-			return_var['adress'] = config['adresse']
-			return_var['bank'] = {}
-			return_var['pin'] = {}
-			
-			return_var['bank'][config[100][2]] = config[100][1] #der zu vergleichende speicher
-			return_var['bank'][config[101][2]] = config[101][1] #der zu vergleichede speicher
-			
-			numberwhile = 1
-			
-			while numberwhile <= 128:
-				bank1 = self.ramlokation(config['adresse'],numberwhile,config[100][2])
-				bank2 = self.ramlokation(config['adresse'],numberwhile,config[101][2])
-				
-				#print (bank1)
-				return_var['pin'][bank1] = {}
-				return_var['pin'][bank2] = {}
-				return_var['pin'][bank1]['exist'] = 0
-				return_var['pin'][bank2]['exist'] = 0
-				
-				numberwhile = numberwhile * 2
-			
-			
-			for x in config['pins']:
-				
-				ownlokation = self.ramlokation(config['adresse'],config['pins'][x][1],config['pins'][x][0])
-				
-				return_var['pin'][ownlokation]['value'] = 0
-				return_var['pin'][ownlokation]['chache'] = 0
-				return_var['pin'][ownlokation]['exist'] = 1
-				return_var['pin'][ownlokation]['config'] = {}
-				return_var['pin'][ownlokation]['config'] = config['pins'][x]
-			
-			
-			ic2 = i2c_treiber(config['adresse'])
-			ic2.write(config[100][0],return_var['bank'][config[100][2]])
-			ic2.write(config[101][0],return_var['bank'][config[101][2]])
-			ic2.close() #verbindung schliessen 
-			
-			return (return_var)
+		looplist = 0 #ic loop
+		loopbank = 0 #register bank Loop
+		loopchip = 0 #ic Pin Loop
+		#return_var = defaultdict(object)
+		return_var={}
+		return_var['adress'] = config['adresse']
+		return_var['bank'] = {}
+		return_var['pin'] = {}
 		
+		return_var['bank'][config[100][2]] = config[100][1] #der zu vergleichende speicher
+		return_var['bank'][config[101][2]] = config[101][1] #der zu vergleichede speicher
+		
+		numberwhile = 1
+		
+		while numberwhile <= 128:
+			bank1 = self.ramlokation(config['adresse'],numberwhile,config[100][2])
+			bank2 = self.ramlokation(config['adresse'],numberwhile,config[101][2])
+				
+			#print (bank1)
+			return_var['pin'][bank1] = {}
+			return_var['pin'][bank2] = {}
+			return_var['pin'][bank1]['exist'] = 0
+			return_var['pin'][bank2]['exist'] = 0
+				
+			numberwhile = numberwhile * 2
+			
+			
+		for x in config['pins']:
+			
+			ownlokation = self.ramlokation(config['adresse'],config['pins'][x][1],config['pins'][x][0])
+				
+			return_var['pin'][ownlokation]['value'] = 0
+			return_var['pin'][ownlokation]['chache'] = 0
+			return_var['pin'][ownlokation]['exist'] = 1
+			return_var['pin'][ownlokation]['config'] = {}
+			return_var['pin'][ownlokation]['config'] = config['pins'][x]
+			
+		return (return_var)
+			
+	
+	def icinit(self,config):# config write into Ic 
+		
+		ic2 = i2c_treiber(config['adresse'])
+		ic2.write(config[100][0],config[100][1])
+		ic2.write(config[101][0],config[101][1])
+		ic2.close() #verbindung schliessen 
+	
 	
 	def ramlokation (self, slaveadress, pin, bank): #zum berechnen der postion im ram jedes einzelen aktoren
 		return str(slaveadress) + str(pin) + str(bank)
@@ -115,9 +117,10 @@ class mcp23017():
 			for y in byteinarray:
 				
 				if ram['pin'][self.ramlokation(ram['adress'],y,x)]['exist'] == 1:
-					if ram['pin'][self.ramlokation(ram['adress'],y,x)]['value'] != byteinarray[y]:
-						print ("tu was")
-					gg = 0
+					#if ram['pin'][self.ramlokation(ram['adress'],y,x)]['value'] != byteinarray[y]:
+					print ("tu was")
+					returndata = self.function(ram['adress'],ram['pin'][self.ramlokation(ram['adress'],y,x)],byteinarray[y])
+					print (returndata)
 				else:
 					#if ram['pin'][self.ramlokation(ram['adress'],y,x)]['value'] != byteinarray[y]:
 					print ("tu was toter pin")
@@ -128,38 +131,5 @@ class mcp23017():
 		return('abfrage')
 		
 		
-	
-
-
-	def abgleich (self): # fragt die bänke ab und vergleicht es mit dem Ram abbild um veränderungen festzustellen
-		looplist = 0 #ic loop
-		loopchip = 0 #ic Pin Loop
-		
-		while looplist < ic_list['num']:
-			looplist += 1
-			
-			ic2 = i2c_treiber(ic_list[looplist]) 
-			while loopchip < ic_chip[looplist]['bank']:
-				bank = 100 + loopchip
-				loopchip += 1
-				data = ic2.read(ic_chip[looplist][bank][2])
-				
-				ramobjekt = self.ramlokation(ic_list[looplist], ic_chip[looplist][bank][2], 'value')
-				if data[1] != ram[ramobjekt]:
-					ram[ramobjekt] = data[1]
-					loopchip2 = 1
-					bitcharge = 128
-					chip_array = self.integertobyte(data[1]) 
-					while loopchip2 < 8:
-						 
-						wert = self.ramlokation(ic_list[looplist], bitcharge, ic_chip[looplist][bank][2])
-						bitcharge = bitcharge / 2 
-						loopchip2 += 1
-						
-						#hier dann die einzelenen funktionen abrufen
-						#muss noch programmiert und getestet werden
-					
-
-					print (chip_array)
-			
-			ic2.close()
+	def function (self,adress,data,dataic):
+		return(data)

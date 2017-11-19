@@ -2,7 +2,7 @@ import struct, array, io, fcntl, sys
 import logging
 I2C_SLAVE=0x0703
 
-class i2c_treiber:
+class i2c_treiber():
 	
 	def __init__ (self, adresse):#adresse vom Slave baustein
 		bus = int(1) #bus selekt

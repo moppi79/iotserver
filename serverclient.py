@@ -5,6 +5,8 @@ from module.i2c_driver import i2c_treiber
 #from i2ccall import i2c_abruf
 
 from sensors.demosensor import demo_sensor
+from sensors.bh1750 import bh1750
+from sensors.htu21d import htu21d
 from module.mcp23017 import mcp23017
 
 logger = logging.getLogger()
@@ -67,6 +69,8 @@ sensordic = defaultdict(object)
 			
 sensordic = {1:[0x99,'options',demo_sensor(),'temperatur/feuchtigkeit'],
 			2:[0xa0,'options',demo_sensor(),'licht'],
+			3:[0x23,'options',bh1750(),'licht'],
+			4:[0x40,'options',htu21d(),'temperatur_feuchtigkeit']
 }
 			
 ram = defaultdict(object)
@@ -80,7 +84,7 @@ class i2c_abruf:
 		if 'firstrun' in ram:
 			ram['firstrun'] = 1 #platzhalter
 		else:
-			ram['firstrun'] = 1
+			ram['firstrun'] = 0
 			
 			for x in ic_chip: ##Declare all ic Dic
 				ram[ic_chip[x]['icname']] = {}
@@ -92,6 +96,15 @@ class i2c_abruf:
 				ram[ic_chip[x]['icname']][x].update(classcall.install(ic_chip[x], x))
 				
 				
+	def icinit(self):
+		for x in ic_chip: ##Declare all ic Dic
+			ram[ic_chip[x]['icname']] = {}
+
+		for x in ic_chip:
+			classcall = ic_class[ic_chip[x]['icname']]
+				
+			ram[ic_chip[x]['icname']][x] = {}
+			ram[ic_chip[x]['icname']][x].update(classcall.install(ic_chip[x]))
 	
 	def comparison(self):
 		
@@ -127,7 +140,7 @@ class server_coneckt:
 			transfer.update(ic_list) #funktions infos client
 			for x in ic_chip:
 				transfer[x] = ic_chip[x] #aktorenliste
-		
+			
 			#jsonstring = json.dumps(transfer)
 			#ret = self.sock(jsonstring)
 			ret = self.sock2(transfer)
@@ -144,9 +157,8 @@ class server_coneckt:
 		#antwort = json.loads(verbindung.sock(json.dumps(data))) #daten senden und holen
 		antwort = verbindung.sock2(data)
 		#antwort = json.loads(verbindung.sock(jsonstring))
-		print (antwort)
-		
 		if antwort != 'ok':
+			
 			ram['stop'] = antwort['stop']
 			
 			ram['webupdate'] = antwort['webupdate']#!!!! muss eine ifabrfrage werden (aber auchg nur wichtig wenn KEIN Switch eingebaut ist !!!!!!!)
@@ -224,16 +236,54 @@ def main_loop():
 		
 		########### Loop Time Management head END#############
 		
-		i2ccall = i2c_abruf()
-		
-		i2ccall.comparison()
-		
-		tester = server_coneckt()
-		
+		i2ccall = i2c_abruf()#umgebung starten 
+
+		tester = server_coneckt()#Server verbindung starten
 		tester.check()
+		i2ccall.switch()# wenn Multiplexer vorhanden dann nun multiplexer einstellen
+		
+				
+		testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
+		
+		antwort = json.loads(tester.sock(json.dumps(testersa)))
+		print(0.2)
+		print (ram)
+		################### Multiplex system install ###################
+		if ram['server_install'] == 1 and ic_list['switch'] == 1:
+			print ('aaa')
+			for x in ram['timeslice']: #Timeslice for
+				if x != 'schlitzzeit': #schlitzzeit filter
+					
+					now = datetime.datetime.now()
+					calc = now.microsecond
+					maxtime =  ram['timeslice'][x] + ram['timeslice']['schlitzzeit'] #max runtime in timeslot
+					if ram['timeslice'][x] < calc and maxtime > calc: #time korridor
+						if str(int(x)+1) in ram['timeslice']:
+							wait = (ram['timeslice'][str(int(x)+1)] - calc) /1000000 #wait time to next time slot
+						else:
+							wait = ((1000000 - calc) + (ram['timeslice']['1'])) /1000000 # if the max slice arrived go to first time slot
+					
+					maxtime = ram['timeslice'][x] - ram['timeslice']['schlitzzeit'] #when time another time slot. wait to the next slot 
+					if ram['timeslice'][x] > calc and maxtime < calc:
+						if str(int(x)+1) in ram['timeslice']:
+							wait = (ram['timeslice'][str(int(x)+1)] - calc) /1000000
+						else:
+							wait = ((1000000 - calc) + (ram['timeslice']['1'])) /1000000 # if the max slice arrived go to first time slot
+							
+			print('hier wait')
+			print(wait)
+			time.sleep(wait)
+			
+			i2ccall.switch() # Multiplex config
+		
+		break
+		################### Multiplex system install ###################
+		#i2ccall.comparison()			
+		
+		
 		#i2ccall.switch()
 		#print(ram)
-		
+		################### Sensor Call ###################
 		if ram['sensor'] != 0: #wenn der Server alle Sensort daten will. (system steh dann auf stop)
 			data = {'funktion':'sensor','sensor':'start', 'target_key':ram['sensor'], 'name':ic_list['name'], 'host':ic_list['host']}
 			while True:
@@ -259,7 +309,7 @@ def main_loop():
 				else:
 					
 					time.sleep(0.05)
-				
+		################### Sensor Call END ###################		
 		
 		########### Loop Time Management foot #############
 		now = datetime.datetime.now()
@@ -280,10 +330,10 @@ def main_loop():
 			
 			break #zum solo testen muss am schluss entfernt werden
 		
-		#testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
+		testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
 		
-		#antwort = json.loads(tester.sock(json.dumps(testersa)))
-		#break #muss zum ende entfernt werden
+		antwort = json.loads(tester.sock(json.dumps(testersa)))
+		break #muss zum ende entfernt werden
 
 
 
