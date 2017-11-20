@@ -1,6 +1,10 @@
 # iotserver
 i2c server/client
 
-is under construktion. 
+iotserver:
+Input/output for serverclient
 
-asaa
+-timeslots 
+
+
+is under construktion. 
