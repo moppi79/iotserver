@@ -1,6 +1,6 @@
 import os, time, sys, signal, io, fcntl, sys, array
 
-#from i2c_driver import i2c_treiber
+from module.i2c_driver import i2c_treiber
 
 class htu21d():
 	

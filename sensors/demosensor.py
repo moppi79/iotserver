@@ -4,5 +4,5 @@ class demo_sensor():
 	
 	def out(self,adresse,speicher):
 		
-		ret = {'temp':'22:5', 'feucht':'56,4'}
+		ret = {'demo_temp':'22:5', 'demo_feucht':'56,4'}
 		return(ret)

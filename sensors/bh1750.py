@@ -1,6 +1,6 @@
 import os, time, sys, signal
 
-#from i2c_driver import i2c_treiber
+from module.i2c_driver import i2c_treiber
 
 class bh1750():
 	
@@ -14,7 +14,6 @@ class bh1750():
 		
 		i2c.write('zero',0x00) #sensor sleep
 		i2c.close() 
-		print(data)
 		light2 = round(((data[1] + (data[0]*256)) / 1.2),2) #Manufacturer best pratice math
 		ret = {'Licht':light2}
 		return(ret)
