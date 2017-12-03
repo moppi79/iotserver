@@ -1,4 +1,4 @@
-import struct, array, io, fcntl, sys
+import struct, array, io, fcntl, sys, time
 import logging
 I2C_SLAVE=0x0703
 
@@ -14,10 +14,14 @@ class i2c_treiber():
 	
 	def write (self, bank, werte): #schreiben Slave, Slave Register, Zu seztender wert 'zero' wert bei sensoren die ohne bank ansprechbar sind.
 		if bank == 'zero':
+			#ausgabe = bytearray([werte])
+			#test = werte.to_bytes(1,byteorder='big')
+			#print ('unformatiert: {} sollwert: {} ist wert: {} anderes: {} test {}'.format(werte,hex(ausgabe[0]),bin(werte),bytearray([werte]),test))
 			try:
 				self.wr.write(bytearray([werte]))#in bus schreiben
 			except :
 				logging.warning('Fehler in i2c_treiber/write')
+				print('aa')
 			
 		else:
 			try:

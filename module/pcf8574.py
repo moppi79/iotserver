@@ -72,18 +72,73 @@ En = 0b00000100 # Enable bit
 Rw = 0b00000010 # Read/Write bit
 Rs = 0b00000001 # Register select bit
 
-class pcf8574 ():
+
+ic_chip = {}
+
+ic_chip[1] ={'icname':'display_pcf8574',
+			'adress':0x27,
+			'lines':4,
+			'lineadress':{1:0x80,
+						2:0xC0,
+						3:0x94,
+						4:0xD4}}
+
+
+
+
+
+class display_pcf8574 ():
 	
-	def install(self):
+	def install(self,config,number):
 		display  = 'dummy'
-		#Write - 0 nothing change, 1 Display light on/off, 2 write text
-		#light - 0 off, 1 on
+		return_var = {}
 		
-		#line1 
-		#line2
-		#line3
-		#line4
-		#string long string
+		return_var['adress'] = config['adress']
+		return_var['lines'] = config['lines']
+		return_var['write'] = 0 #Write - 0 nothing change, 1 Display light on/off, 2 write text
+		
+
+		
+		return_var['light'] = 0 #light - 0 off, 1 on
+		return_var['property'] = 0 #property - 0 off,  1 When the Content to show until the user is quiting this bit, the display is not refresh the display
+
+		return_var['pre_property'] = 0 #last run bevor property bit is set and display goes closed
+		
+		self.i2c = i2c_treiber(config['adress'])
+
+		self.formating(0x03)
+		self.formating(0x03)
+		self.formating(0x03)
+		self.formating(0x02)
+		self.formating(0x01)
+		#self.i2c.write('zero',(LCD_FUNCTIONSET | LCD_2LINE ))
+		
+		self.formating(LCD_FUNCTIONSET | LCD_2LINE | LCD_5x8DOTS | LCD_4BITMODE)
+		
+		#self.formating(LCD_DISPLAYCONTROL | LCD_DISPLAYON | LCD_BLINKON)
+		#self.formating(LCD_DISPLAYMOVE | LCD_MOVERIGHT )
+		#self.formating(LCD_ENTRYMODESET | LCD_ENTRYRIGHT )
+		
+		
+		#self.textsend('*****Moppi*****',0x80)
+		
+		for x in config['lineadress']:
+			return_var['line'+str(x)] = {'adress':config['lineadress'][x],'value':''}
+			self.textsend('Line {}'.format(str(x)),(config['lineadress'][x]))
+			print ('Line{}'.format(str(x)))
+		
+		return_var['string'] = '' #string long string
+		#self.formating(0x08)
+		time.sleep(.1)
+		self.i2c.close()
+		
+		return(return_var)
+		
+		
+		
+		
+		
+		
 		
 		#property - 0 off,  1 When the Content to show until the user is quiting this bit, the display is not refresh the display
 
@@ -94,7 +149,7 @@ class pcf8574 ():
 			#disply write 
 			display  = 'dummy'
 	
-		
+	'''
 	def __init__(self):
 		print('lalal')
 		self.i2c = i2c_treiber(0x27)
@@ -121,68 +176,34 @@ class pcf8574 ():
 		self.formating(0x00)
 	
 		self.i2c.close()
-	
+	'''
 	
 	def textsend(self,string,line):
+		print ('string:{} line:{}'.format(string,line))
 		self.formating(line)
 		for char in string:
 			self.formating(ord(char), Rs)
 			#time.sleep(0.5)
 		
 		
-	def formating(self, data, mode=0):
-		print (data)
-		print('A')
-
-		self.write(mode | (data & 0xf0))
-		self.write((mode | ((data << 4) & 0xf0)))
+	def formating(self, data, mode=0): #8 bit in 4 bit teilen.
+		self.write(mode | (data & 0xf0)) #obere 4 bit
+		self.write((mode | ((data << 4) & 0xf0))) #untere 4 bit
 
 	def write(self, data):
-		self.i2c.write('zero',data)
+		self.i2c.write('zero',data) # Display in bereitschaft setzen
 		time.sleep(.0001)
-		self.i2c.write('zero',(data | En | LCD_BACKLIGHT))
-		time.sleep(.0001)
-		self.i2c.write('zero',((data & ~En) | LCD_BACKLIGHT))
+		self.i2c.write('zero',(data | En | LCD_BACKLIGHT)) #wr bit setzen daten schreiben
+		time.sleep(.0006)
+		self.i2c.write('zero',((data & ~En) | LCD_BACKLIGHT)) #daten bestätigen
 		time.sleep(0.0001)
 
-		'''
-		i2c.write('zero',0x28) # Sets interface data length (DL), number of display line (N) and character font(F).
-		i2c.write('zero',0x05)#Sets cursor move direction (I/D), specifies to shift the display (S). These operations are performed during data read/write.
-		i2c.write('zero',0x08)#Sets On/Off of all display (D), cursor On/Off (C) and blink of cursor position character (B).)
-		i2c.write('zero',0x10)#Sets cursor-move or display-shift (S/C), shift direction (R/L). DDRAM contents remains unchanged. 
-		
-		i2c.write('zero',0x01)
-		i2c.write('zero',0x02)
-		'''
-	
-
-'''
-def test(cmd):
-	print (bin(cmd))
-	print(bin((cmd & 0xf0)|Rw)) #digital shift 0xF0 füllt erstes feld 1111 aus damit CMD gerade 4 bit ist 
-	
-	print(bin((cmd << 4) & 0xf0))
-	print('------')
 
 
-string = '123456'
-for char in string:
-	test(ord(char))
 
 
-cmd = (ord('a'))
-print (cmd)
-mode =0
 
-print(mode | (cmd & 0xF0)) #digital shift 0xF0 füllt erstes feld 1111 aus damit CMD gerade 4 bit ist 
 
-print(mode | ((cmd << 4) & 0xF0))
+test = display_pcf8574()
 
-def test (meg=1):
-	print(meg)
-	
-	
-test()
-test('23')
-'''
-test = pcf8574()
+print (test.install(ic_chip[1],11))
