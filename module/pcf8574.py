@@ -1,8 +1,7 @@
-import daemon, os, time, sys, signal, lockfile, daemon.pidfile, socket, logging, datetime, json, random
-
+import  os, time, logging, datetime
 #from module.i2c_driver import i2c_treiber
 
-from i2c_driver import i2c_treiber
+from module.i2c_driver import i2c_treiber
 
 '''
 Aktoren rechen nach pin
@@ -65,8 +64,8 @@ LCD_5x8DOTS = 0x00
 	
 # flags for backlight control
 #LCD_BACKLIGHT = 0x08
-LCD_BACKLIGHT = 0x00
-LCD_NOBACKLIGHT = 0x00
+LCD_BACKLIGHT = 0x08
+#LCD_NOBACKLIGHT = 0x00
 	
 En = 0b00000100 # Enable bit
 Rw = 0b00000010 # Read/Write bit
@@ -75,9 +74,12 @@ Rs = 0b00000001 # Register select bit
 
 ic_chip = {}
 
-ic_chip[1] ={'icname':'display_pcf8574',
+ic_chip[1] ={'icname':'pcf8574',
+			'display_name':'schreibisch',
+			'display_typ':'text', 
 			'adress':0x27,
 			'lines':4,
+			'symbol':20,
 			'lineadress':{1:0x80,
 						2:0xC0,
 						3:0x94,
@@ -87,7 +89,7 @@ ic_chip[1] ={'icname':'display_pcf8574',
 
 
 
-class display_pcf8574 ():
+class pcf8574:
 	
 	def install(self,config,number):
 		display  = 'dummy'
@@ -95,43 +97,26 @@ class display_pcf8574 ():
 		
 		return_var['adress'] = config['adress']
 		return_var['lines'] = config['lines']
-		return_var['write'] = 0 #Write - 0 nothing change, 1 Display light on/off, 2 write text
+		return_var['write'] = 2 #Write - 0 nothing change, 1 Display toggle light on/off, 2 write text
 		
+		return_var['write_line'] = 0 #wich line must wrote
+		return_var['reset'] = 1 #reset the display
 
 		
-		return_var['light'] = 0 #light - 0 off, 1 on
+		return_var['light'] = 1 #light - 0 off, 1 on
 		return_var['property'] = 0 #property - 0 off,  1 When the Content to show until the user is quiting this bit, the display is not refresh the display
 
 		return_var['pre_property'] = 0 #last run bevor property bit is set and display goes closed
-		
-		self.i2c = i2c_treiber(config['adress'])
 
-		self.formating(0x03)
-		self.formating(0x03)
-		self.formating(0x03)
-		self.formating(0x02)
-		self.formating(0x01)
-		#self.i2c.write('zero',(LCD_FUNCTIONSET | LCD_2LINE ))
-		
-		self.formating(LCD_FUNCTIONSET | LCD_2LINE | LCD_5x8DOTS | LCD_4BITMODE)
-		
-		#self.formating(LCD_DISPLAYCONTROL | LCD_DISPLAYON | LCD_BLINKON)
-		#self.formating(LCD_DISPLAYMOVE | LCD_MOVERIGHT )
-		#self.formating(LCD_ENTRYMODESET | LCD_ENTRYRIGHT )
-		
-		
-		#self.textsend('*****Moppi*****',0x80)
-		
-		for x in config['lineadress']:
-			return_var['line'+str(x)] = {'adress':config['lineadress'][x],'value':''}
-			self.textsend('Line {}'.format(str(x)),(config['lineadress'][x]))
+		for x in config['lineadress']: #retunrns a Dictonay --> return['lineX'] = {'adress':0x80,'value':'text'}
+			return_var['line'+str(x)] = {'adress':config['lineadress'][x],'value':'*install* line '+str(x)}
+			
 			print ('Line{}'.format(str(x)))
 		
 		return_var['string'] = '' #string long string
-		#self.formating(0x08)
-		time.sleep(.1)
-		self.i2c.close()
-		
+		#IoT install. name:'text', value:'start value' typ:text/in/out/value usable:0/1,'id':'max char'
+		return_var['iot'] ={}
+		return_var['iot'][1] = {'name':config['display_name'],'value':'', 'typ':'text','usable':1,'id':str(config['lines']*config['symbol'])}
 		return(return_var)
 		
 		
@@ -143,40 +128,58 @@ class display_pcf8574 ():
 		#property - 0 off,  1 When the Content to show until the user is quiting this bit, the display is not refresh the display
 
 	def comparison (self,ram):
+		return_var = {}
+		if ram['write'] != 0:
 		
-		if ram['property'] == 1:
+			if ram['property'] == 1:
+				
+				#disply write 
+				display  = 'dummy'
+			else:
+				print ('jo')
+				self.i2c = i2c_treiber(ram['adress'])
+				
+				if ram['light'] == 1: #Set light on/off
+					LCD_BACKLIGHT = 0x08
+				else:
+					LCD_BACKLIGHT = 0x00
+				
+				if ram['reset'] == 1: #Resert display
+					self.reset()
+					ram['reset'] = 0
+					
+				if ram['write'] ==1: #Light on/off or Write text 
+					self.i2c.write('zero',LCD_BACKLIGHT)
+					ram['write'] = 0
+				else:
+					print (LCD_BACKLIGHT)
+					ram['write_line'] += 1 #Line counting up
+					if ram['write_line'] == 1:
+						self.formating(0x01) ##clear Display	
+					
+					#return['lineX'] = {'adress':0x80,'value':'text'}
+					self.textsend(ram['line'+str(ram['write_line'])]['value'],ram['line'+str(ram['write_line'])]['adress'])
+					
+					if ram['write_line'] == ram['lines']: #when data Complete wrote, sets data to 0
+						ram['write_line'] = 0
+						ram['write'] = 0
+					
+					self.i2c.write('zero',LCD_BACKLIGHT)
+				
+				
+				self.i2c.close()
+		return(ram)
 			
-			#disply write 
-			display  = 'dummy'
-	
-	'''
-	def __init__(self):
-		print('lalal')
-		self.i2c = i2c_treiber(0x27)
 
+	def reset(self):
+		
 		self.formating(0x03)
 		self.formating(0x03)
 		self.formating(0x03)
 		self.formating(0x02)
 		self.formating(0x01)
-		#self.i2c.write('zero',(LCD_FUNCTIONSET | LCD_2LINE ))
 		
 		self.formating(LCD_FUNCTIONSET | LCD_2LINE | LCD_5x8DOTS | LCD_4BITMODE)
-		
-		#self.formating(LCD_DISPLAYCONTROL | LCD_DISPLAYON | LCD_BLINKON)
-		#self.formating(LCD_DISPLAYMOVE | LCD_MOVERIGHT )
-		#self.formating(LCD_ENTRYMODESET | LCD_ENTRYRIGHT )
-		
-		
-		
-		self.textsend('*****Moppi*****',0x80)
-		self.textsend('*****Kagari*****',0xC0)
-		self.textsend('*****Kim*****',0x94)
-		self.textsend('*****Lucy*****',0xD4)
-		self.formating(0x00)
-	
-		self.i2c.close()
-	'''
 	
 	def textsend(self,string,line):
 		print ('string:{} line:{}'.format(string,line))
@@ -200,10 +203,30 @@ class display_pcf8574 ():
 
 
 
-
-
-
-
+'''
 test = display_pcf8574()
+ausgabe = test.install(ic_chip[1],11)
+print (ausgabe)
 
-print (test.install(ic_chip[1],11))
+ausgabe = test.comparison(ausgabe)
+ausgabe = test.comparison(ausgabe)
+ausgabe = test.comparison(ausgabe)
+ausgabe = test.comparison(ausgabe)
+ausgabe['light'] = 1
+ausgabe['write'] = 1
+ausgabe = test.comparison(ausgabe)
+
+
+ausgabe['line1']['value'] = 'hallo'
+ausgabe['line2']['value'] = 'moppi'
+ausgabe['line3']['value'] = 'ich bin'
+ausgabe['line4']['value'] = 'Display'
+ausgabe['light'] = 0
+ausgabe['write'] = 2
+print (ausgabe)
+ausgabe = test.comparison(ausgabe)
+ausgabe = test.comparison(ausgabe)
+ausgabe = test.comparison(ausgabe)
+ausgabe = test.comparison(ausgabe)
+'''
+

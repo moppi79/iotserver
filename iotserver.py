@@ -33,11 +33,8 @@ name (server-client){
 "webupdate": 0, gab es ein update von einem webclient 
 "sensor" : 0, # abfrage von sensoren 
 "tsupdate": 0, # es gab ein update für den Timeslot
-"aktor":{
-	'laufende nummer'{ ic liste
-		'laufende nummer'{ deckungsgleich mit server-client liste
-			"now":0 jetziger zustand (aus web update)
-			"new":1 zu setznter zustand (für server)
+"number"{ iclist
+"numer"{ config data
 
 
 '''
@@ -112,15 +109,15 @@ class sensor():#sensorabfrage classe
 			variable[data['host']][data['name']]['update'] = 1
 			ifabgeholtgleich3 = 0
 			vergleich = 0
-			for x in sensor_ram[data['target_key']]:
+			for x in sensor_ram[data['target_key']]: #überprüfen ob alle Clients sensor daten gesendet hat 
 				for y in sensor_ram[data['target_key']][x]:
-					vergleich = vergleich + 1
+					vergleich += 1
 					if sensor_ram[data['target_key']][x][y]['abgeholt'] == 3:
-						ifabgeholtgleich3 = ifabgeholtgleich3 + 1
+						ifabgeholtgleich3 += 1
 					
 						
 				
-			if ifabgeholtgleich3 == vergleich:
+			if ifabgeholtgleich3 == vergleich: #wenn alle daten übermittelet wurden. clients wieder auf normal stellung setzen
 				ram[data['target_key']] = 1
 				for x in variable: #x ist name vom client
 					logging.debug('for')
@@ -129,16 +126,16 @@ class sensor():#sensorabfrage classe
 						
 						if ram[x][y]['sensor'] == 1: #suche ob client Sensoren hat
 							
-							variable[x][y]['sensor'] = 0
+							variable[x][y]['sensor'] = 0 #standart wert zurück setzen
 							variable[x][y]['update'] = 1
-							variable[x][y]['stop'] = 0
+							variable[x][y]['stop'] = 0  #stop aufheben
 				
 			logging.error(json.dumps(sensor_ram))
 			logging.error(json.dumps(variable))
 		
 			return ('ok') 
 		
-		if data['sensor'] == 'return':
+		if data['sensor'] == 'return': #server antwort an anfrager, mit zwei aussagen, alle sensor daten ODER er solle weiter warten
 			if ram[data['target_key']] == 1:
 				return (sensor_ram[data['target_key']]) 
 			else:
@@ -154,57 +151,64 @@ class sensor():#sensorabfrage classe
 			zufall = random.randrange(1,4)
 			
 			if (zufall == 1):
-				ausgabe = ausgabe + str(random.randrange(0,10))
+				ausgabe = ausgabe + str(random.randrange(0,10)) # zahlen
 			if (zufall == 2):
-				ausgabe = ausgabe + chr(random.randrange(65,91))
+				ausgabe = ausgabe + chr(random.randrange(65,91)) #Grossbuchstaben
 			if (zufall == 3):
-				ausgabe = ausgabe + chr(random.randrange(97,123))
+				ausgabe = ausgabe + chr(random.randrange(97,123)) # kleine buchstaben
 		logging.error(ausgabe)
 		
 		return(ausgabe)
 				
 class check():#standart abfrage von server-Clients
 	
-	def eingang(self,data):
-		logging.error(json.dumps(variable))
-		logging.error(json.dumps(ram))
-		logging.error(json.dumps(timeschlitz))
+	def eingang(self,data): #über mittelt was der client nun zutun hat.
+		#logging.error(json.dumps(variable))
+		#logging.error(json.dumps(ram))
+		#logging.error(json.dumps(timeschlitz))
 		if variable[data['host']][data['name']]['update'] == 1:
-			returner = {}
-			returner['stop'] = variable[data['host']][data['name']]['stop']
-			returner['webupdate'] = variable[data['host']][data['name']]['webupdate']
-			returner['sensor'] = variable[data['host']][data['name']]['sensor']
-			returner['tsupdate'] = variable[data['host']][data['name']]['tsupdate']
-			variable[data['host']][data['name']]['update'] = 0
+			returner = {} #container erstellen
+			returner['stop'] = variable[data['host']][data['name']]['stop'] #stop signal
+			returner['webupdate'] = variable[data['host']][data['name']]['webupdate'] #ansage das Webupdate da ist (zusätzlicher Trigger)
+			returner['sensor'] = variable[data['host']][data['name']]['sensor'] #ansage, das er nun sensor daten liefern soll(geparrt mit STOP)
+			returner['tsupdate'] = variable[data['host']][data['name']]['tsupdate'] #wenn client sich neuen Time slot abhoilen soll
+			variable[data['host']][data['name']]['update'] = 0 #general update signal für update, eher wichtig für den server
 		else:
-			returner = "ok"
+			returner = "ok" # standart antwort wenn es nichts neues gibt 
 		return (returner)
 		
 	def delete(self, name, host): #client aus speicher entfernen
-		logging.error(name)
-		logging.error(json.dumps(timeschlitz))
-		logging.error(json.dumps(variable))
-		logging.error(json.dumps(ram))
-		logging.error(json.dumps(timeschlitz[host][variable[host][name]['timeslot']]))
+		#logging.error(name)
+		#logging.error(json.dumps(timeschlitz))
+		#logging.error(json.dumps(variable))
+		#logging.error(json.dumps(ram))
 		
-		del timeschlitz[host][variable[host][name]['timeslot']]
-		logging.debug(json.dumps(variable))
-		del variable[host][name]
-		logging.debug(json.dumps(ram))
-		del ram[host][name]
 		
-		logging.error(json.dumps(timeschlitz))
-		logging.error(json.dumps(variable))
-		logging.error(json.dumps(ram))
+		if variable[host][name]['switch'] == 1: #wenn Client mit einem Multiplexer ausgestatet ist 
+			#logging.error('timeslot delete')
+			#logging.error(json.dumps(timeschlitz[host][variable[host][name]['timeslot']]))
+			del timeschlitz[host][variable[host][name]['timeslot']] #löschen variable
+			
+		#logging.debug(json.dumps(variable))
+		del variable[host][name] #löschen variable
+		#logging.debug(json.dumps(ram))
+		del ram[host][name] #löschen variable
+		
+		#logging.error(json.dumps(timeschlitz))
+		#logging.error(json.dumps(variable))
+		#logging.error(json.dumps(ram))
 			
 		returner = "ok"
 		return (returner)
 		
 
-class server():
+class server(): # server standart Classe
 	
 	def new_data (self,jsoncode):
-		
+		'''
+		jede anfrage wird erst durch dieses Konstruck bearbeitet und dann in die passende unterklasse 
+		weiter geleitet.
+		'''
 		try:
 			umwandel = json.loads(jsoncode)
     		
@@ -233,7 +237,7 @@ class server():
 				#addnew.timeslicer()
 				return returner
 			
-		elif umwandel['funktion'] == 'check':
+		elif umwandel['funktion'] == 'check': #die standart abrfragen, ob es änderungen giebt 
 			logging.debug('check aufruf')
 			checker = check()
 			returner = json.dumps(checker.eingang(umwandel))
@@ -251,6 +255,29 @@ class server():
 			returner = json.dumps(ram)
 			return returner
 		
+		elif umwandel['funktion'] == 'stop': ## wenn sich etwas am Server-client ändert (damit inhalt variable geändert wird)
+			logging.error('stop '+umwandel['name'])
+			if variable[data['host']][data['name']]['stop'] == 0:
+				variable[data['host']][data['name']]['stop'] = 1
+				variable[data['host']][data['name']]['update'] = 1
+				returner = json.dumps(senso.eingang('ok'))
+			else:
+				if variable[data['host']][data['name']]['update'] == 1:
+					returner = json.dumps(senso.eingang('wait'))
+				else:
+					logging.error('delete')
+					deleter = check()
+					ausgabe = deleter.delete(umwandel['name'],umwandel['host'])
+					returner = json.dumps('kill')
+					if len(variable[umwandel['host']]) != 0:
+						logging.debug('delete-create new time slice')
+						create = timer_san()
+						create.timeslicer(umwandel['host'])
+					else:
+						logging.debug('delete kein neuer time sclice')
+					return returner
+			
+		
 		elif umwandel['funktion'] == 'delete': #wenn ein client nicht mehr benötigt wird 
 			logging.error('delete')
 			deleter = check()
@@ -264,7 +291,7 @@ class server():
 				logging.debug('delete kein neuer time sclice')
 			return returner
 		
-		elif umwandel['funktion'] == 'timeslice':
+		elif umwandel['funktion'] == 'timeslice': #rückgabe neuer Timeslot 
 			logging.error('timeslicer_funk')
 			logging.error(json.dumps(timeschlitz[umwandel['host']][int(variable[umwandel['host']][umwandel['name']]['timeslot'])]))
 			variable[umwandel['host']][umwandel['name']]['tsupdate'] = 0
@@ -312,6 +339,7 @@ class timer_san():
 	
 	def new_client(self, name, host):
 		logging.error('durchlauf new_client')
+		logging.error(ram)
 		if host in variable:#
 			voidvar = 1
 			logging.error('gefunden')
@@ -336,18 +364,20 @@ class timer_san():
 			self.timeslicer(host)
 		else:
 			variable[host][name]['switch'] = 0
-		logging.error(str(ram[host][name]['num']))
+		#logging.error(str(ram[host][name]['num']))
 		
-		for y in range(1, ram[host][name]['num']+1):
-			logging.error('Fehler bei install daten in Master Server-'+str(ram[host][name][str(y)]['num']+1))
-			variable[host][name]['aktor'][str(y)] = {}
-			for x in range(1, ram[host][name][str(y)]['num']+1):
-			
-				logging.error('Fehler bei install daten in Master Serverhhhh')
-				variable[host][name]['aktor'][str(y)][str(x)] = {} #leerer container
-				variable[host][name]['aktor'][str(y)][str(x)]['now'] = 0
-				variable[host][name]['aktor'][str(y)][str(x)]['new'] = 0		 ##kann nachher gelöscht werden
-		logging.error(json.dumps(variable))
+		for y in ram[host][name]['iot']:
+			#logging.error('Fehler bei install daten in Master Server-'+str(ram[host][name][str(y)]['num']+1))
+			variable[host][name][y] = {}
+			for x in ram[host][name]['iot'][y]:
+				
+				#logging.error('Fehler bei install daten in Master Serverhhhh')
+				variable[host][name][y][x] = {}
+				variable[host][name][y][x] = ram[host][name]['iot'][y][x]
+				variable[host][name][y][x]['update'] = 0
+				
+		 ##kann nachher gelöscht werden
+		#logging.error(json.dumps(variable))
 
 
 class MyTCPHandler(socketserver.BaseRequestHandler):
@@ -361,7 +391,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         # self.request is the TCP socket connected to the client
-        data = self.request.recv(1024).strip()
+        data = self.request.recv(10024).strip()
         rawdata = data.decode('utf-8')
         
         call = server()

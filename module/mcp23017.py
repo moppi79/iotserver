@@ -12,7 +12,6 @@ class mcp23017():
 			'adresse':0x20,
 			'num':6,#anzahl ports
 			'bank':2,#anzahl banken
-			'pins':8,#anzahlpins
 			100:[0x00,0x00,0x12], #adresse der bank, start wert, export register MCP23017
 			101:[0x01,0xff,0x13], #adresse der bank, start wert, export register MCP23017 1 in 0 out
 			#1:[0x12,0x01,'in/out','aktor','beschreibung',1,[ziel bei schalter]], #register,startwert,Direction,typ,beschreibung,'fürwebseite Schaltbar' ("0"nein, "1"ja)optionaler wert für schalter
@@ -27,7 +26,7 @@ class mcp23017():
 		
 '''
 
-class mcp23017():	
+class mcp23017:	
 	def install(self,config,number):
 
 		looplist = 0 #ic loop
@@ -38,6 +37,7 @@ class mcp23017():
 		return_var['adress'] = config['adresse']
 		return_var['bank'] = {}
 		return_var['pin'] = {}
+		return_var['iot'] = {}
 		
 		return_var['bank'][config[100][2]] = config[100][1] #der zu vergleichende speicher
 		return_var['bank'][config[101][2]] = config[101][1] #der zu vergleichede speicher
@@ -66,6 +66,9 @@ class mcp23017():
 			return_var['pin'][ownlokation]['exist'] = 1
 			return_var['pin'][ownlokation]['config'] = {}
 			return_var['pin'][ownlokation]['config'] = config['pins'][x]
+			
+			
+			return_var['iot'][x] = {'name':config['pins'][x][4],'value':0, 'typ':config['pins'][x][2],'usable':config['pins'][x][5],'id':ownlokation}
 			
 		return (return_var)
 			

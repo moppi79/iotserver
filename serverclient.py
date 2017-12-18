@@ -1,5 +1,6 @@
 import daemon, os, time, sys, signal, lockfile, daemon.pidfile, socket, logging, datetime, json, random
 
+from multiprocessing import Process, Queue
 from collections import defaultdict
 from module.i2c_driver import i2c_treiber
 #from i2ccall import i2c_abruf
@@ -8,6 +9,9 @@ from sensors.demosensor import demo_sensor
 from sensors.bh1750 import bh1750
 from sensors.htu21d import htu21d
 from module.mcp23017 import mcp23017
+from module.pcf8574 import pcf8574
+
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.ERROR)
@@ -50,7 +54,6 @@ ic_chip[1] ={'icname':'mcp23017',
 			'adresse':0x20,
 			'num':7,#anzahl ports
 			'bank':2,#anzahl banken
-			'pins':8,#anzahlpins
 			100:[0x00,0x00,0x12], #adresse der bank, start wert, export register MCP23017
 			101:[0x01,0xff,0x13], #adresse der bank, start wert, export register MCP23017 1 in 0 out
 			#1:[0x12,0x01,'aktor','beschreibung',1,[ziel bei schalter]], #register,startwert,typ,beschreibung,'fürwebseite Schaltbar' ("0"nein, "1"ja)optionaler wert für schalter
@@ -65,6 +68,17 @@ ic_chip[1] ={'icname':'mcp23017',
 			}}
 
 
+ic_chip[2] ={'icname':'pcf8574',
+			'display_name':'schreibisch',
+			'display_typ':'text', 
+			'adress':0x27,
+			'lines':4,
+			'symbol':20,
+			'lineadress':{1:0x80,
+						2:0xC0,
+						3:0x94,
+						4:0xD4}}
+
 sensordic = defaultdict(object)		
 			
 sensordic = {1:[0x99,'options',demo_sensor(),'temperatur/feuchtigkeit'],
@@ -76,7 +90,7 @@ sensordic = {1:[0x99,'options',demo_sensor(),'temperatur/feuchtigkeit'],
 ram = defaultdict(object)
 ram = {}
 
-ic_class = {'mcp23017':mcp23017()}
+ic_class = {'mcp23017':mcp23017(),'pcf8574':pcf8574()}
 
 class i2c_abruf:
 	
@@ -125,8 +139,7 @@ class i2c_abruf:
 		if zustand[1] != i2cswitch['port']: #hier muss drin ste
 			switch.write(0x00,i2cswitch['port'])
 		switch.close()
-		
-		
+
 class server_coneckt:
 	
 	def __init__(self):
@@ -139,12 +152,16 @@ class server_coneckt:
 			transfer = defaultdict(object)
 			transfer = {'funktion':'add'} #auszuführende Funktion im server
 			transfer.update(ic_list) #funktions infos client
+			transfer['iot'] = {}
+			#wichtig bei übermittluhng wird nur IoT verwendet. iot[ic_chip][aktor]
 			for x in ic_chip:
-				transfer[x] = ic_chip[x] #aktorenliste
+				transfer['iot'][x] = ram[ic_chip[x]['icname']][x]['iot'] #aktorenliste
 			
-			#jsonstring = json.dumps(transfer)
-			#ret = self.sock(jsonstring)
+			
+			print (transfer)
 			ret = self.sock2(transfer)
+			
+			#ret = '"ok"'
 			if ret != '"ok"':
 				logger.error('Fehler bei install daten in Master Server')
 				print (ret)
@@ -217,6 +234,57 @@ class server_coneckt:
 		else:
 			logger.error('keine funktion übermittelt')
 			return 'error'
+			
+class thread: #ausführen von einzelen plugins im hintergrund0
+	
+	def __init__(self): #install im ram 
+	
+		ram['pluginhold'] = {}
+	
+		
+	def new_thread(self,ziel): # start a new thread
+		
+		new_value = self.skirmish(5)
+		ram['pluginhold'][new_value] = {} #erzeugen Container
+		ram['pluginhold'][new_value]['queue'] = Queue() # Queue erstellen
+		ram['pluginhold'][new_value]['prozess'] = Process(target=ziel, args=('bob',ram['pluginhold'][new_value]['queue'])) #prozess vorbereiten
+		ram['pluginhold'][new_value]['prozess'].start() # Prozzes starten
+		
+		
+	def comparison(self): # Abfragen ob Thread daten hat
+		checker = 0
+		delter = {} # gesammlete keys
+		for x in ram['pluginhold']: #abfragen aller aktiven hintergrund prozesse
+			checker = 1
+			if ram['pluginhold'][x]['queue'].empty() != True: 
+				delter[x] = x
+				print (ram['pluginhold'][x]['queue'].get())
+				
+		if checker == 1: #nur aktiv wenn es einen aktiven prozess giebt
+			for x in delter:
+				self.end_thread(x)
+
+			
+	def end_thread(self,thread): # clean up
+		ram['pluginhold'][thread]['prozess'].join()
+		ram['pluginhold'][thread]['queue'].close
+		ram['pluginhold'][thread]['prozess'].terminate()
+		ram['pluginhold'].pop(thread)
+		print('del')
+		
+	def skirmish(self, length): #zufallsgenerator
+		ausgabe = ''
+		for x in range(0,length):
+			#print (x)
+			zufall = random.randrange(1,4)
+		
+			if (zufall == 1):
+				ausgabe = ausgabe + str(random.randrange(0,10))
+			if (zufall == 2):
+				ausgabe = ausgabe + chr(random.randrange(65,91))
+			if (zufall == 3):
+				ausgabe = ausgabe + chr(random.randrange(97,123))
+		return(ausgabe)
 
 def ms_time(select): #return 0 ms 1 Second 2 array with both
 	now = datetime.datetime.now()
@@ -240,11 +308,13 @@ def main_loop():
 	
 	i2ccall = i2c_abruf()#umgebung starten 
 	print('hier')
+	print(ram)
+	
 	socket_call = server_coneckt()#Server verbindung starten
 	socket_call.check()
 	
 	while True:
-
+		#break
 		########### Loop Time Management head #############
 		start = ms_time(0)
 		print (start)
@@ -347,7 +417,8 @@ def main_loop():
 					
 					#i2ccall.switch()# wenn Multiplexer vorhanden dann nun multiplexer einstellen
 		else:
-			i2ccall.comparison() #ausführen
+			print('vergleich ohne switch')
+			#i2ccall.comparison() #ausführen
 		
 		################### I²C Call END###################
 			
@@ -364,11 +435,18 @@ def main_loop():
 		print (ms_time(0) - ministart )
 		################### ServerCall End ###################
 		
-		#			
+		################### Plugin  ###################
 		
 		
-		#i2ccall.switch()
-		#print(ram)
+		
+		print ('----hier-----')
+		
+		print(ram)
+		
+		################### Plugin END ###################
+		
+		
+		
 		################### Sensor Call ###################
 		if ram['sensor'] != 0: #wenn der Server alle Sensort daten will. (system steh dann auf stop)
 			data = {'funktion':'sensor','sensor':'start', 'target_key':ram['sensor'], 'name':ic_list['name'], 'host':ic_list['host']}
@@ -407,24 +485,26 @@ def main_loop():
 		loopspeed += run
 		loopcounter += 1
 		########### Loop Time Management Foot #############
-		loopmaster += 1
-		if loopmaster > 50:
+		
+		if 'loopcountdebug' == sys.argv[1]:
+			loopmaster += 1
+			if loopmaster > int(sys.argv[2]):
+				testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
+			
+				antwort = json.loads(socket_call.sock(json.dumps(testersa)))
+				#print (ram['timeslice'])
+				print ('programm ende')
+				break #zum solo testen muss am schluss entfernt werden
+		
+		if 'singledebug' == sys.argv[1]:
 			testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
-		
 			antwort = json.loads(socket_call.sock(json.dumps(testersa)))
-			print (ram['timeslice'])
-			break #zum solo testen muss am schluss entfernt werden
-		
-		#testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
-		
-		#antwort = json.loads(tester.sock(json.dumps(testersa)))
-		#break #muss zum ende entfernt werden
+			break #muss zum ende entfernt werden
 
 
 
-main_loop()
 
-'''
+
 
 context = daemon.DaemonContext( #daemon konfig
 	working_directory=master_pfad,
@@ -433,12 +513,27 @@ context = daemon.DaemonContext( #daemon konfig
 
 )
 
-if len(sys.argv) == 2:
+if len(sys.argv) != 1:
 	if 'start' == sys.argv[1]:
 		print("wird gestartet ...")
 		with context:
 			main_loop()
 	elif 'stop' == sys.argv[1]:
+		print ("stopping Client")
+		testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
+		
+		antwort = json.loads(socket_call.sock(json.dumps(testersa)))
+		
+		while True:
+			testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
+			antwort = json.loads(socket_call.sock(json.dumps(testersa)))
+			time.sleep(1)
+			print (antwort)
+			if antwort == '"kill"':
+				print('client stopped')
+				break
+			
+		
 		pidfile = open(master_pidfile, 'r') #pid File suchen
 		line = pidfile.readline().strip()#daten lesen
 		pidfile.close()
@@ -446,9 +541,18 @@ if len(sys.argv) == 2:
 		pid = int(line) #zur int umwandelkn
 		os.kill(pid, signal.SIGKILL) #PID kill
 		os.remove(master_pidfile) #alte PID löschen
-		print ('beendet.....')
+		print ('Client Closed')
 	elif 'restart' == sys.argv[1]:
 		print ("lala") ##noch nichts geplant
+	elif 'singledebug' == sys.argv[1]:
+		main_loop()	
+	
+	elif 'loopcountdebug' == sys.argv[1]:
+		print ("aa")
+		if sys.argv[2] != '':
+			
+			main_loop()	
+	
 	elif 'help' == sys.argv[1]:
 		print ('start|stop|add|get|end')
 	else:
@@ -456,7 +560,6 @@ if len(sys.argv) == 2:
 		sys.exit(2)
 		
 else:
-   	print ("usage: %s start|stop|restart") 
+   	print ("usage: %s start|stop|restart|singledebug|loopcountdebug(anzahl)") 
 sys.exit(2)
 
-'''
