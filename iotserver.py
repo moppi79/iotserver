@@ -5,7 +5,9 @@ HOST, PORT = "localhost", 5050 ##adresse und port vom server-server
 
 logger = logging.getLogger()
 logger.setLevel(logging.ERROR)
-fh = logging.FileHandler("/net/html/i2cclient/server.log")
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+fh = logging.FileHandler("/net/html/iotserver/server.log")
+fh.setFormatter(formatter)
 logger.addHandler(fh)
 
 
@@ -166,15 +168,24 @@ class check():#standart abfrage von server-Clients
 		#logging.error(json.dumps(variable))
 		#logging.error(json.dumps(ram))
 		#logging.error(json.dumps(timeschlitz))
-		if variable[data['host']][data['name']]['update'] == 1:
-			returner = {} #container erstellen
-			returner['stop'] = variable[data['host']][data['name']]['stop'] #stop signal
-			returner['webupdate'] = variable[data['host']][data['name']]['webupdate'] #ansage das Webupdate da ist (zusätzlicher Trigger)
-			returner['sensor'] = variable[data['host']][data['name']]['sensor'] #ansage, das er nun sensor daten liefern soll(geparrt mit STOP)
-			returner['tsupdate'] = variable[data['host']][data['name']]['tsupdate'] #wenn client sich neuen Time slot abhoilen soll
-			variable[data['host']][data['name']]['update'] = 0 #general update signal für update, eher wichtig für den server
+		#logging.error('check anfrage')
+		if data['name'] in variable[data['host']]:
+		
+			if variable[data['host']][data['name']]['update'] == 1:
+				logging.error('new update call')
+				returner = {} #container erstellen
+				returner['stop'] = variable[data['host']][data['name']]['stop'] #stop signal
+				returner['webupdate'] = variable[data['host']][data['name']]['webupdate'] #ansage das Webupdate da ist (zusätzlicher Trigger)
+				returner['sensor'] = variable[data['host']][data['name']]['sensor'] #ansage, das er nun sensor daten liefern soll(geparrt mit STOP)
+				returner['tsupdate'] = variable[data['host']][data['name']]['tsupdate'] #wenn client sich neuen Time slot abhoilen soll
+				variable[data['host']][data['name']]['update'] = 0 #general update signal für update, eher wichtig für den server
+			else:
+				returner = "ok" # standart antwort wenn es nichts neues gibt 
+				#logging.error('check')
 		else:
-			returner = "ok" # standart antwort wenn es nichts neues gibt 
+			logging.error('not exist anymore'+data['name'])
+			returner = 'ok'
+			
 		return (returner)
 		
 	def delete(self, name, host): #client aus speicher entfernen
@@ -256,26 +267,33 @@ class server(): # server standart Classe
 			return returner
 		
 		elif umwandel['funktion'] == 'stop': ## wenn sich etwas am Server-client ändert (damit inhalt variable geändert wird)
+			
 			logging.error('stop '+umwandel['name'])
-			if variable[data['host']][data['name']]['stop'] == 0:
-				variable[data['host']][data['name']]['stop'] = 1
-				variable[data['host']][data['name']]['update'] = 1
-				returner = json.dumps(senso.eingang('ok'))
+			returner = json.dumps('nope')
+			if variable[umwandel['host']][umwandel['name']]['stop'] == 0:
+				logging.error('stop varibale setzen '+umwandel['name'])
+				variable[umwandel['host']][umwandel['name']]['stop'] = 1
+				variable[umwandel['host']][umwandel['name']]['update'] = 1
+				returner = json.dumps('ok')
 			else:
-				if variable[data['host']][data['name']]['update'] == 1:
-					returner = json.dumps(senso.eingang('wait'))
+				#logging.error('else '+variable)
+				if variable[umwandel['host']][umwandel['name']]['update'] == 1:
+					logging.error('warten '+umwandel['name'])
+					returner = json.dumps('wait')
 				else:
+					logging.error('absetzen delete '+umwandel['name'])
 					logging.error('delete')
 					deleter = check()
 					ausgabe = deleter.delete(umwandel['name'],umwandel['host'])
 					returner = json.dumps('kill')
 					if len(variable[umwandel['host']]) != 0:
-						logging.debug('delete-create new time slice')
+						logging.error('delete-create new time slice')
 						create = timer_san()
 						create.timeslicer(umwandel['host'])
 					else:
-						logging.debug('delete kein neuer time sclice')
-					return returner
+						logging.error('delete kein neuer time sclice')
+			
+			return returner
 			
 		
 		elif umwandel['funktion'] == 'delete': #wenn ein client nicht mehr benötigt wird 
@@ -313,6 +331,7 @@ class timer_san():
 				variable[host][key]['timeslot'] = counter
 				variable[host][key]['update'] = 1 
 				variable[host][key]['tsupdate'] = 1
+				variable[host][key]['stop'] = 0
 				counter +=1
 		
 		anzahl_schlitze = 6 #abfrage zeiten innerhalb einer sekunde
@@ -354,7 +373,7 @@ class timer_san():
 		variable[host][name]['lasttime'] = ts #timestamp
 		variable[host][name]['webupdate'] = 0 #wenn es zu einem aktor chanche kam
 		variable[host][name]['timeslot'] = 0 #zugewiesener Timesolt vom timeslicer
-		variable[host][name]['stop'] = 1
+		variable[host][name]['stop'] = 0
 		variable[host][name]['update'] = 1
 		variable[host][name]['sensor'] = 0
 		variable[host][name]['tsupdate'] = 0
@@ -460,7 +479,7 @@ if len(sys.argv) == 2:
 		pidfile = open('/net/schedule', 'r') #pid File suchen
 		line = pidfile.readline().strip()#daten lesen
 		pidfile.close()
-		print(line); #nummer ausgabe
+		#print(line); #nummer ausgabe
 		pid = int(line) #zur int umwandelkn
 		os.kill(pid, signal.SIGKILL) #PID kill
 		os.remove('/net/schedule') #alte PID löschen

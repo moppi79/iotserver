@@ -11,11 +11,15 @@ from sensors.htu21d import htu21d
 from module.mcp23017 import mcp23017
 from module.pcf8574 import pcf8574
 
+pidfilename = 'clientpid'
+workingpath = '/net/html/iotserver'
 
 
 logger = logging.getLogger()
 logger.setLevel(logging.ERROR)
-fh = logging.FileHandler("/net/html/i2cclient/client.log")
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+fh = logging.FileHandler(workingpath+"/client.log")
+fh.setFormatter(formatter)
 logger.addHandler(fh)
 
 
@@ -164,7 +168,7 @@ class server_coneckt:
 			#ret = '"ok"'
 			if ret != '"ok"':
 				logger.error('Fehler bei install daten in Master Server')
-				print (ret)
+				#print (ret)
 
 	def check(self):
 	
@@ -176,7 +180,7 @@ class server_coneckt:
 		antwort = verbindung.sock2(data)
 		#antwort = json.loads(verbindung.sock(jsonstring))
 		if antwort != 'ok':
-			
+			logger.error('änderung check')
 			ram['stop'] = antwort['stop']
 			
 			ram['webupdate'] = antwort['webupdate']#!!!! muss eine ifabrfrage werden (aber auchg nur wichtig wenn KEIN Switch eingebaut ist !!!!!!!)
@@ -184,7 +188,7 @@ class server_coneckt:
 			ram['sensor'] = antwort['sensor']
 			
 			if antwort['tsupdate'] == 1:
-				
+				logger.error('new Time')
 				ram['timeslice'] = self.timeslice()
 				
 		return ('---') ### 
@@ -219,7 +223,7 @@ class server_coneckt:
 			
 			server_address = ('localhost', 5050)#server adresse
 			print('connecting to {} port {}'.format(*server_address))
-			print (data)
+			#print (data)
 			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#art der verbingdung
 			sock.connect(server_address)#verbindung herstellen
 			sock.sendall(json_string.encode('utf8'))#befehl senden
@@ -301,6 +305,10 @@ def main_loop():
 	loopspeed = 1
 	loopcounter = 1
 	
+	run = 0
+	
+	abfragen_sec = 10
+	
 	now = datetime.datetime.now()
 	calc = {now.microsecond}
 	
@@ -319,16 +327,22 @@ def main_loop():
 		start = ms_time(0)
 		print (start)
 		print('start')
-
+		sleeptime_i2c_wait = 0
+		'''
 		if secondloop != ms_time(1): #every new second
 			secondloop = ms_time(1)
-			#print ('loopcounter {} / loopspeed{} = {}'.format(loopcounter,loopspeed,(int(loopspeed/loopcounter))))
+			print ('loopcounter {} / loopspeed{} = {}'.format(loopcounter,loopspeed,(int(loopspeed/loopcounter))))
 			speed = (int(1000000 - (int(loopspeed/loopcounter))*10)/10)/1000000
 			loopspeed = 0
 			loopcounter = 0
 			if speed < 0: 
 				speed = 0.1 #when speed negativ
 				print ('negativ speed!!!!')
+				
+		'''
+		
+		
+		
 		########### Loop Time Management head END#############
 
 		################### Multiplex system install ###################
@@ -373,66 +387,75 @@ def main_loop():
 		################### Multiplex system install ###################
 		#print(ram['timeslice'])
 		################### I²C Call ###################
-		
-		if ic_list['switch'] == 1:
-			now_timer = ms_time(0) 
-			maxruntime = ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])] + ram['timeslice']['schlitzzeit']
-			
-			if now_timer < ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])]:
-				print ('FEHLER ZEIT')
-				print ('aktuelle zeit: {} -- Timeslot: {}'.format(now_timer,ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])]))
-				wait = round((ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])] - now_timer) /1000000,3)
-				print (wait)
-				time.sleep(wait)
-				older = now_timer 
+		if ram['stop'] == 0:
+			if ic_list['switch'] == 1:
 				now_timer = ms_time(0) 
-				print ('alt:{} -- neu{}'.format(older,now_timer ))
-				
-			if ram['timeslice_runtime']['max'] < (ram['timeslice_runtime']['timeslice'])+1:
-				next_slice = 1
-			else:
-				next_slice =  (ram['timeslice_runtime']['timeslice'])+1
-			
-			if ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])] < now_timer and maxruntime > now_timer:
-				#print ('now timeslice')
-				#print (ram['timeslice'][str((ram['timeslice_runtime']['timeslice'])+1)])
-				
-				zahl = now_timer - ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])]
-				prozentzahl = int((zahl / ram['timeslice']['schlitzzeit']) * 100)
-				#print ( 'ergebniss {}. now: {}'.format(zahl, ram['timeslice']['schlitzzeit']))
-				print ( 'hier die zahl {} %'.format(prozentzahl))
-				#print ('{} < {} and {} > {}'.format(ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])], now_timer, maxruntime, now_timer))
-				
-				if prozentzahl > 50:
+				maxruntime = ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])] + ram['timeslice']['schlitzzeit']
+
+				if ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])] < now_timer and maxruntime > now_timer: #abfrage ob zeit in zeitschlictz liegt 
+					#print ('now timeslice')
+					#print (ram['timeslice'][str((ram['timeslice_runtime']['timeslice'])+1)])
 					
-					if ram['timeslice_runtime']['max'] < (ram['timeslice_runtime']['timeslice'])+1:
-						ram['timeslice_runtime']['timeslice'] = 1
-					else:
-						ram['timeslice_runtime']['timeslice'] += 1
-			else:
-				#print('error')
-				ram['server_install'] = 1
-				print ('maxruntime:{}  ,next_slice:{} ram-timeslice_runtime-timeslice:{} aktuelltime slice:{}'.format(maxruntime,next_slice,ram['timeslice'][str(next_slice)] ,ram['timeslice_runtime']['timeslice']))	
-				print ('{} < {} and {} > {}'.format(maxruntime, now_timer, ram['timeslice'][str(next_slice)] , now_timer))
+					zahl = now_timer - ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])]
+					prozentzahl = int((zahl / ram['timeslice']['schlitzzeit']) * 100) #prozentualer anteil im zeitschlitz
+					#print ( 'ergebniss {}. now: {}'.format(zahl, ram['timeslice']['schlitzzeit']))
+					print ( 'hier die zahl {} %'.format(prozentzahl))
+
+					i2ccall.switch()# wenn Multiplexer vorhanden dann nun multiplexer einstellen
+					i2ccall.comparison() #ausführen
 					
-					#i2ccall.switch()# wenn Multiplexer vorhanden dann nun multiplexer einstellen
+					if prozentzahl > 50: #wenn die zeit drüber liegt. nächster zeitschlitz. 
+						
+						if ram['timeslice_runtime']['max'] < (ram['timeslice_runtime']['timeslice'])+1:
+							ram['timeslice_runtime']['timeslice'] = 1
+						else:
+							ram['timeslice_runtime']['timeslice'] += 1
+				else:
+					#print('error')
+					print ('neu slice') 
+					loop1 = 1
+					lastnumber = 0
+					while ram['timeslice_runtime']['max'] >= loop1:
+						#'timeslice': {'6': 833330, '5': 666664, '1': 0, '4': 499998, '3': 333332, 'schlitzzeit': 166666, '2': 166666}, 
+						# 'timeslice_runtime': {'max': 6, 'second_now': 54, 'timeslice': 5},
+						if loop1 == ram['timeslice_runtime']['max'] and lastnumber == 0:
+							print('fast')
+							ram['timeslice_runtime']['timeslice'] = 1
+							sleeptime_i2c_wait = 1
+						else:	
+							if ram['timeslice'][str(loop1)] < now_timer and ram['timeslice'][str(loop1+1)] > now_timer:
+								print('yeah')
+								ram['timeslice_runtime']['timeslice'] = loop1+1
+								lastnumber = 1
+								sleeptime_i2c_wait = 1
+						#print(loop1)
+						loop1 += 1
+
+			else:
+				print('vergleich ohne switch')
+				#i2ccall.comparison() #ausführen
 		else:
-			print('vergleich ohne switch')
-			#i2ccall.comparison() #ausführen
+			print('stop')
+				
 		
 		################### I²C Call END###################
 			
 		################### Servercall ###################
 		ministart = ms_time(0)
 		if loop_server_call == 0 and ms_time(0) < 500000:
+			#logger.error('checker halb')
 			loop_server_call = 1
 			socket_call.check()
+			print (ms_time(0) - ministart )
+			
 			
 		if loop_server_call == 1 and ms_time(0) > 500000:
+			#logger.error('checker voll')
 			loop_server_call = 0
 			socket_call.check()
+			print (ms_time(0) - ministart )
 			
-		print (ms_time(0) - ministart )
+		
 		################### ServerCall End ###################
 		
 		################### Plugin  ###################
@@ -441,7 +464,7 @@ def main_loop():
 		
 		print ('----hier-----')
 		
-		print(ram)
+		#print(ram)
 		
 		################### Plugin END ###################
 		
@@ -481,6 +504,27 @@ def main_loop():
 		if run < 0: #start Stop Between zwo seconds 
 			run2 = 1000000 - start
 			run = run2 + stop
+		
+		durchschnitt_erreichnet = 1000000 / abfragen_sec # ms / abfragen die sec.
+		
+		speed = (durchschnitt_erreichnet - run) / 1000000
+		if speed < 0: 
+			speed = 0.1 #when speed negativ
+			print ('negativ speed!!!!')
+		print ('footer')
+		print (speed)	
+		print ('footer')
+		
+		if sleeptime_i2c_wait == 1: #update time i2c Multiplex wait 
+			if ram['timeslice_runtime']['timeslice'] == 1:
+				
+				speed = ((1000000 - stop) + (ram['timeslice']['1'])) / 1000000
+				
+				
+				print ('nummer 1 speed neu: {} ,stop: {} ram: {} '.format(speed,stop,ram['timeslice']['1']))
+			else:	
+				speed = (ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])] - stop) / 1000000 
+				print ('speed neu: {} '.format(speed))
 		time.sleep(speed)# calculated Sleep
 		loopspeed += run
 		loopcounter += 1
@@ -489,14 +533,19 @@ def main_loop():
 		if 'loopcountdebug' == sys.argv[1]:
 			loopmaster += 1
 			if loopmaster > int(sys.argv[2]):
+				print(ram)
 				testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
 			
 				antwort = json.loads(socket_call.sock(json.dumps(testersa)))
 				#print (ram['timeslice'])
 				print ('programm ende')
 				break #zum solo testen muss am schluss entfernt werden
+			
+			print (loopmaster)
+
 		
 		if 'singledebug' == sys.argv[1]:
+			
 			testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
 			antwort = json.loads(socket_call.sock(json.dumps(testersa)))
 			break #muss zum ende entfernt werden
@@ -507,11 +556,15 @@ def main_loop():
 
 
 context = daemon.DaemonContext( #daemon konfig
-	working_directory=master_pfad,
+	working_directory= workingpath ,
    	umask=0o002,
-   	pidfile=daemon.pidfile.PIDLockFile(master_pidfile),
+   	pidfile=daemon.pidfile.PIDLockFile(workingpath+'/'+pidfilename),
+   	files_preserve = [
+   		fh.stream,
+    ],
 
 )
+
 
 if len(sys.argv) != 1:
 	if 'start' == sys.argv[1]:
@@ -520,27 +573,25 @@ if len(sys.argv) != 1:
 			main_loop()
 	elif 'stop' == sys.argv[1]:
 		print ("stopping Client")
-		testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
-		
-		antwort = json.loads(socket_call.sock(json.dumps(testersa)))
-		
-		while True:
-			testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
-			antwort = json.loads(socket_call.sock(json.dumps(testersa)))
-			time.sleep(1)
-			print (antwort)
-			if antwort == '"kill"':
-				print('client stopped')
-				break
+		testersa = {'funktion':'stop','name':ic_list['name'] ,'host':ic_list['host']}
 			
-		
-		pidfile = open(master_pidfile, 'r') #pid File suchen
+		antwort = server_coneckt.sock2('',testersa)
+		while True:
+			testersa = {'funktion':'stop','name':ic_list['name'] ,'host':ic_list['host']}
+			antwort = server_coneckt.sock2('',testersa)
+			time.sleep(1)
+			if antwort == 'kill':
+				
+				print('client stopped')
+				break 
+			
+		pidfile = open(workingpath+'/'+pidfilename, 'r') #pid File suchen
 		line = pidfile.readline().strip()#daten lesen
 		pidfile.close()
-		print(line); #nummer ausgabe
+		#print(line); #nummer ausgabe
 		pid = int(line) #zur int umwandelkn
 		os.kill(pid, signal.SIGKILL) #PID kill
-		os.remove(master_pidfile) #alte PID löschen
+		os.remove(workingpath+'/'+pidfilename) #alte PID löschen
 		print ('Client Closed')
 	elif 'restart' == sys.argv[1]:
 		print ("lala") ##noch nichts geplant
