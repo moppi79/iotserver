@@ -64,7 +64,7 @@ LCD_5x8DOTS = 0x00
 	
 # flags for backlight control
 #LCD_BACKLIGHT = 0x08
-LCD_BACKLIGHT = 0x08
+LCD_BACKLIGHT = 0x00
 #LCD_NOBACKLIGHT = 0x00
 	
 En = 0b00000100 # Enable bit
@@ -127,6 +127,7 @@ class pcf8574:
 		
 		#property - 0 off,  1 When the Content to show until the user is quiting this bit, the display is not refresh the display
 
+
 	def comparison (self,ram):
 		return_var = {}
 		if ram['write'] != 0:
@@ -138,7 +139,7 @@ class pcf8574:
 			else:
 				print ('jo')
 				self.i2c = i2c_treiber(ram['adress'])
-				
+				global LCD_BACKLIGHT
 				if ram['light'] == 1: #Set light on/off
 					LCD_BACKLIGHT = 0x08
 				else:
@@ -158,7 +159,8 @@ class pcf8574:
 						self.formating(0x01) ##clear Display	
 					
 					#return['lineX'] = {'adress':0x80,'value':'text'}
-					self.textsend(ram['line'+str(ram['write_line'])]['value'],ram['line'+str(ram['write_line'])]['adress'])
+					if ram['line'+str(ram['write_line'])]['value'] != '':
+						self.textsend(ram['line'+str(ram['write_line'])]['value'],ram['line'+str(ram['write_line'])]['adress'])
 					
 					if ram['write_line'] == ram['lines']: #when data Complete wrote, sets data to 0
 						ram['write_line'] = 0
@@ -180,7 +182,9 @@ class pcf8574:
 		self.formating(0x01)
 		
 		self.formating(LCD_FUNCTIONSET | LCD_2LINE | LCD_5x8DOTS | LCD_4BITMODE)
-	
+		self.formating(LCD_DISPLAYCONTROL | LCD_DISPLAYON)
+		self.formating(LCD_ENTRYMODESET | LCD_ENTRYLEFT)
+		
 	def textsend(self,string,line):
 		print ('string:{} line:{}'.format(string,line))
 		self.formating(line)
@@ -194,12 +198,15 @@ class pcf8574:
 		self.write((mode | ((data << 4) & 0xf0))) #untere 4 bit
 
 	def write(self, data):
-		self.i2c.write('zero',data) # Display in bereitschaft setzen
+		self.i2c.write('zero',data | LCD_BACKLIGHT) # Display in bereitschaft setzen
 		time.sleep(.0001)
 		self.i2c.write('zero',(data | En | LCD_BACKLIGHT)) #wr bit setzen daten schreiben
 		time.sleep(.0006)
 		self.i2c.write('zero',((data & ~En) | LCD_BACKLIGHT)) #daten bestätigen
 		time.sleep(0.0001)
+
+
+
 
 
 

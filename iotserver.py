@@ -23,6 +23,9 @@ variable = {}
 sensor_ram = defaultdict(object)
 sensor_ram = {}
 
+iot_ram = defaultdict(object)
+iot_ram = {}
+
 '''
 inhalt variable {
 host { (Laufende maschine)
@@ -41,8 +44,46 @@ name (server-client){
 
 '''
 
+class iot():
 
-
+	def all_in(self,data): #need key iotfunk --> funklist
+		logging.error('all-in')
+		funklist = {'array':'array',
+					'update':'update',
+					}
+		checker = 0
+		for funk in funklist:
+			
+			if data['iotfunk'] == funk:
+				ausgabe = getattr(self,funklist[data['iotfunk']])(data)
+				checker = 1
+			
+			if checker == 0:
+				logging.error('fehlerhafter befehl vom HTML client')
+				ausgabe = 'error in data '
+			
+		return (ausgabe)
+	
+	def array(self,data):
+		logging.error('array')
+		returner = {}
+		if 'sesession_id' in data:
+			logging.error(data)
+			logging.error('client vorhanden')
+			returner['stuff'] = 'stuff'
+			
+		else:
+			logging.error('new client')
+			sesession_id = sensor.new('',20)
+			iot_ram[sesession_id] = {}
+			returner['sesession_id'] = sesession_id
+			
+		return (returner)
+			
+			
+	def update(self,data):
+		returner = {}
+		logging.error('update')
 
 class sensor():#sensorabfrage classe
 
@@ -50,7 +91,7 @@ class sensor():#sensorabfrage classe
 		logging.error('eingang')
 		if data['sensor'] == 'new':
 			
-			newkey = self.new(data)
+			newkey = self.new(10)
 			logging.debug(newkey)
 			sensor_ram[newkey] = {}
 			sensor_ram[newkey]['all_client'] = 0
@@ -68,7 +109,7 @@ class sensor():#sensorabfrage classe
 						sensor_ram[newkey][x][y]['abgeholt'] = 0
 						ram[newkey] = 0
 					
-			#logging.error(json.dumps(variable))
+			logging.error(json.dumps(variable))
 			return (newkey)
 		
 		if data['sensor'] == 'start': #Client muss antworten mir sensort:start, target_key:xxxxxxxx, name:client_name
@@ -145,10 +186,10 @@ class sensor():#sensorabfrage classe
 			
 			
 		
-	def new(self,data):#erstellen von schlüssel für sensor
+	def new(self,data=10):#erstellen von schlüssel für sensor
 		logging.error('new_rand')
 		ausgabe = ''
-		for x in range(1,10):
+		for x in range(1,data):
 			#print (x)
 			zufall = random.randrange(1,4)
 			
@@ -211,7 +252,6 @@ class check():#standart abfrage von server-Clients
 			
 		returner = "ok"
 		return (returner)
-		
 
 class server(): # server standart Classe
 	
@@ -247,6 +287,13 @@ class server(): # server standart Classe
 				addnew.new_client(umwandel['name'], umwandel['host'])
 				#addnew.timeslicer()
 				return returner
+				
+		elif umwandel['funktion'] == 'iot': #die standart abrfragen, ob es änderungen giebt
+			logging.error('iot aufruf')
+			v1 = iot()
+			returner = json.dumps(v1.all_in(umwandel))
+			return returner
+			
 			
 		elif umwandel['funktion'] == 'check': #die standart abrfragen, ob es änderungen giebt 
 			logging.debug('check aufruf')
@@ -318,7 +365,7 @@ class server(): # server standart Classe
 			return returner
 		else:
 			logging.error('unbekannter befehl')
-			returner = json.dumps('error')
+			returner = json.dumps('error: unbekannter befehl')
 			return returner
 
 class timer_san():

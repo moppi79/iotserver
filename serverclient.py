@@ -85,10 +85,8 @@ ic_chip[2] ={'icname':'pcf8574',
 
 sensordic = defaultdict(object)		
 			
-sensordic = {1:[0x99,'options',demo_sensor(),'temperatur/feuchtigkeit'],
-			2:[0xa0,'options',demo_sensor(),'licht'],
-			3:[0x23,'options',bh1750(),'licht'],
-			4:[0x40,'options',htu21d(),'temperatur_feuchtigkeit']
+sensordic = {1:[0x23,'options',bh1750(),'licht'],
+			2:[0x40,'options',htu21d(),'temperatur_feuchtigkeit']
 }
 			
 ram = defaultdict(object)
@@ -296,6 +294,10 @@ def ms_time(select): #return 0 ms 1 Second 2 array with both
 		return (now.microsecond)
 	elif select == 1:
 		return (now.second)
+	elif select == 2:
+		return (now.minute)
+	elif select == 3:
+		return (now.hour)
 	else:
 		return ({0:now.microsecond,1:now.second})
 		
@@ -497,6 +499,31 @@ def main_loop():
 					
 					time.sleep(0.05)
 		################### Sensor Call END ###################		
+		
+		################### prototypinm ###################	
+		
+		if 'proto' in ram:
+			
+			if ram['proto']['sec']  != ms_time(1):
+				ram['proto']['sec'] = ms_time(1)
+				
+				ram['pcf8574'][2]['light'] = 0
+				ram['pcf8574'][2]['write'] = 2
+				
+				ram['pcf8574'][2]['reset'] = 1
+				ram['pcf8574'][2]['line1']['value'] = '{}:{}:{}'.format(str(ms_time(3)),str(ms_time(2)),str(ms_time(1)))
+				ram['pcf8574'][2]['line2']['value'] = ''
+				ram['pcf8574'][2]['line3']['value'] = ''
+				ram['pcf8574'][2]['line4']['value'] = ''
+			
+		else:
+			ram['proto'] = {}
+			
+			ram['proto']['sec'] = ms_time(1)
+			
+		
+		
+		################### prototypinm END ###################	
 		
 		########### Loop Time Management foot #############
 		stop = ms_time(0)
