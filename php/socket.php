@@ -12,7 +12,7 @@ class iot{
 		$this->vars[function_list]['iotfunk'] = $data;
 
 		if ($this->vars['sesession_id'] != ''){
-
+			print ('funk');
 			$this->vars[function_list]['sesession_id'] = $this->vars['sesession_id'];
 		}
 	}
@@ -24,24 +24,63 @@ class iot{
 	}
 	
 	public function get (){
-		print $data;
-		print_r($this->vars);
 		
 		if ($this->vars['sesession_id'] == ''){
 			
 			iot::func_create('array'); 
 			$data = iot::send_read();
-			print_r($data);
-			//iot::setvalue('sesession_id',$data['sesession_id']);
+			
 			$this->vars['sesession_id'] = $data['sesession_id'];
 		}
-		print "hiuer hier";
 		
 		iot::func_create('array');
-		print_r($this->vars);
+		//print_r($this->vars);
 		$data = iot::send_read();
 		print_r($data);
+		
+		return('---->>>>>   hallllooooooo    <<<---');
 	}
+	
+	public function push_data ($num,$var,$data){
+		//print $num;
+		
+		$this->vars[function_list]['new'][$num][$var] = $data;
+		
+	}
+	
+	public function push (){
+		print "aaaa";
+		if ($this->vars['sesession_id'] != ''){
+			iot::func_create('push'); 
+			$data = iot::send_read();
+			print_r($data);
+			//print_r($this->vars);
+		unset($this->vars[function_list]['new']);
+		}else return('error no session ID');
+		
+	}
+		
+	public function update_data ($var,$data){
+		//print $num;
+		
+		$this->vars[function_list]['update'][$var] = $data;
+		
+	}
+	
+	public function update (){
+		print "bbbb";
+		if ($this->vars['sesession_id'] != ''){
+			iot::func_create('update'); 
+			$data = iot::send_read();
+			
+			//print_r($this->vars);
+		unset($this->vars[function_list]['update']);
+		
+		return($data);
+		}else return('error no session ID');
+		
+	}
+	
 	
 	function send_read($data){ //daten austausch PHP/IoT server
 	
@@ -51,7 +90,7 @@ class iot{
 
 		$transfer =  json_encode($this->vars[function_list]);
 		
-		print socket_send($socket,$transfer,1024 ,MSG_DONTROUTE);
+		socket_send($socket,$transfer,1024 ,MSG_DONTROUTE);
 
 		socket_recv ($socket , $buf , 10204 , MSG_WAITALL );
 		
@@ -68,5 +107,21 @@ $a->setvalue('sesession_id','');
 $a->setvalue('host','localhost');
 $a->setvalue('port',5050);
 
-$a->get();
+print($a->get());
+
+$a->push_data(1,'host','raspi2');
+$a->push_data(1,'location','balkon');
+$a->push_data(1,'ic_chip','2');
+$a->push_data(1,'id','80');
+$a->push_data(1,'value','Iot-Server test');
+
+$a->push();
+
+
+$a->update_data(1,'host','raspi2');
+$a->update_data(1,'location','balkon');
+$a->update_data(1,'ic_chip','2');
+
+print_r($a->update());
+
 ?>

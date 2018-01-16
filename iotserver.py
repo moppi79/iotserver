@@ -1,4 +1,4 @@
-import daemon, os, time, sys, signal, lockfile, daemon.pidfile, socket, socketserver, json, logging, random
+import daemon, os, time, sys, signal, lockfile, daemon.pidfile, socket, socketserver, json, logging, random,datetime
 from collections import defaultdict
 
 HOST, PORT = "localhost", 5050 ##adresse und port vom server-server
@@ -23,8 +23,21 @@ variable = {}
 sensor_ram = defaultdict(object)
 sensor_ram = {}
 
+#data from client_Server to webclient
 iot_ram = defaultdict(object)
 iot_ram = {}
+
+#data from webclient to server_client
+iot_cache = defaultdict(object)
+iot_cache = {}
+
+#auth token, web and server_client
+iot_token = defaultdict(object)
+iot_token = {}
+
+#iot Config from server_client
+iot_config = defaultdict(object)
+iot_config = {}
 
 '''
 inhalt variable {
@@ -48,8 +61,10 @@ class iot():
 
 	def all_in(self,data): #need key iotfunk --> funklist
 		logging.error('all-in')
+		#input filter
 		funklist = {'array':'array',
 					'update':'update',
+					'push':'push',
 					}
 		checker = 0
 		for funk in funklist:
@@ -68,22 +83,81 @@ class iot():
 		logging.error('array')
 		returner = {}
 		if 'sesession_id' in data:
+			
 			logging.error(data)
 			logging.error('client vorhanden')
-			returner['stuff'] = 'stuff'
+			
+			returner = ram 
+			
 			
 		else:
 			logging.error('new client')
 			sesession_id = sensor.new('',20)
 			iot_ram[sesession_id] = {}
+			iot_ram[sesession_id]['ram_lokal'] = ram
 			returner['sesession_id'] = sesession_id
 			
 		return (returner)
+		
+	def time (self,data):
+		if data == 'get':
 			
+			now = datetime.datetime.now()
 			
-	def update(self,data):
-		returner = {}
+			return (str(now.day)+':'+str(now.hour)+':'+str(now.minute)+':'+str(now.second))
+		
+		else:
+			now = datetime.datetime.now()
+			
+			d,h,m,s = data.split(':')
+			
+			nowstamp = ((now.day*86400)+(now.hour*3600)+(now.minute*60)+(now.second))
+			
+			laststamp = ((int(d)*86400)+(int(h)*3600)+(int(m)*60)+(int(s)))
+	
+			return (nowstamp - laststamp)
+	
+	def push (self,data):
+
+		logging.error(data)
+		logging.error('push')
+		for x in data['new']:
+			idnew = sensor.new('',20)
+			logging.error(x)
+			#iot_ram[idnew] = {}
+			#iot_ram[idnew][x] = {}
+			iot_ram[data['sesession_id']][idnew] = {}
+			for y in data['new'][idnew]:
+				logging.error(y)
+				
+				#iot_ram[idnew][x][y] = data['new'][x][y]
+				iot_ram[data['sesession_id']][idnew][y] = data['new'][x][y]
+				
+				variable[data['new'][x]['host']][data['new'][x]['location']]['webupdate'] = 1
+				
+				returner = iot_ram
+		
+		return (returner)
+
+	def update(self,data): ##später gleicher rückweg wie hin
+		
+		for x in iot_ram[data['host']][data['location']]['iot'][data['ic_chip']]:
+			logging.error('update')
+		
+		returner = 'ja hier gibt es nun daten !!!'
 		logging.error('update')
+
+
+		
+	def server_get (self,data):
+		
+		print('mumu')
+		
+	
+	def server_set(self,data):
+		
+		print('mumu')
+			
 
 class sensor():#sensorabfrage classe
 
@@ -233,8 +307,8 @@ class check():#standart abfrage von server-Clients
 		#logging.error(name)
 		#logging.error(json.dumps(timeschlitz))
 		#logging.error(json.dumps(variable))
-		#logging.error(json.dumps(ram))
-		
+		logging.error(json.dumps(iot_token))
+		logging.error(json.dumps(iot_config))
 		
 		if variable[host][name]['switch'] == 1: #wenn Client mit einem Multiplexer ausgestatet ist 
 			#logging.error('timeslot delete')
@@ -243,6 +317,15 @@ class check():#standart abfrage von server-Clients
 			
 		#logging.debug(json.dumps(variable))
 		del variable[host][name] #löschen variable
+		
+		#logging.error('1')
+		#logging.error(ram[host][name]['sesession_id'])
+		
+		del iot_token[ram[host][name]['sesession_id']]
+		#logging.error('2')
+		del iot_config[host][name] 
+		#logging.error('3')
+		
 		#logging.debug(json.dumps(ram))
 		del ram[host][name] #löschen variable
 		
@@ -282,11 +365,26 @@ class server(): # server standart Classe
 			if insertnew == 1:##wenn user nicht angelegt ist
 				logging.error('new')
 				ram[umwandel['host']][umwandel['name']] = umwandel #in speicher einfügen
-				returner = json.dumps('ok') #ok senden
+				#returner = json.dumps('ok') #ok senden
 				addnew = timer_san()
+				sesession_id = sensor.new('',20)
+				logging.error(sesession_id)
+				iot_token[sesession_id] = {}
+				ret = {}
+				logging.error(json.dumps(umwandel))
+				ret['sesession_id'] = sesession_id
+				ram[umwandel['host']][umwandel['name']]['sesession_id'] = sesession_id
+				iot_token[sesession_id]['host'] = umwandel['host']
+				iot_token[sesession_id]['name'] = umwandel['name']
+				iot_token[sesession_id]['typ'] = 'server'
+				iot_token[sesession_id]['time'] = iot.time('','get')
+				iot_config[umwandel['host']] = {}
+				iot_config[umwandel['host']][umwandel['name']]  = {}
+				iot_config[umwandel['host']][umwandel['name']] = umwandel['iot']
 				addnew.new_client(umwandel['name'], umwandel['host'])
 				#addnew.timeslicer()
-				return returner
+				logging.error(ret)
+				return json.dumps(ret)
 				
 		elif umwandel['funktion'] == 'iot': #die standart abrfragen, ob es änderungen giebt
 			logging.error('iot aufruf')

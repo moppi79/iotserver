@@ -73,7 +73,7 @@ ic_chip[1] ={'icname':'mcp23017',
 
 
 ic_chip[2] ={'icname':'pcf8574',
-			'display_name':'schreibisch',
+			'display_name':'schreibisch_display',
 			'display_typ':'text', 
 			'adress':0x27,
 			'lines':4,
@@ -91,6 +91,12 @@ sensordic = {1:[0x23,'options',bh1750(),'licht'],
 			
 ram = defaultdict(object)
 ram = {}
+
+iot_ram = defaultdict(object)
+iot_ram = {}
+iot_ram['data'] = {} #all iot interface data from modul or Plugin
+iot_ram['get'] = {} #get data from IoT server
+iot_ram['send'] = {} #send data to IoT server
 
 ic_class = {'mcp23017':mcp23017(),'pcf8574':pcf8574()}
 
@@ -111,6 +117,7 @@ class i2c_abruf:
 				ram[ic_chip[x]['icname']][x] = {}
 				ram[ic_chip[x]['icname']][x].update(classcall.install(ic_chip[x], x))
 				
+				iot_ram['data']['ic2_'+str(x)] = ram[ic_chip[x]['icname']][x]['iot']
 				
 	def icinit(self):
 		for x in ic_chip: ##Declare all ic Dic
@@ -127,6 +134,13 @@ class i2c_abruf:
 		for x in ic_chip:
 			classcall = ic_class[ic_chip[x]['icname']]
 			print (classcall.comparison(ram[ic_chip[x]['icname']][x]))
+			#return sollte dann 1:1 in den jeweiligen RAM 
+			#zurückspielbar sein 
+			'''
+			am besten mit einer if abfrage 
+			hier dann nachher dann das IoT set
+			
+			'''
 			
 			
 	def switch(self): ##switch schalten
@@ -142,6 +156,18 @@ class i2c_abruf:
 			switch.write(0x00,i2cswitch['port'])
 		switch.close()
 
+class iot:
+	
+	def iot_get (self):
+		#set from server_coneckt.check or xxx
+		print ('lulu')
+		
+	
+	def iot_set (self):
+		#set from from i2c_abruf.comparison or xxx
+		print ('mumu')
+	
+
 class server_coneckt:
 	
 	def __init__(self):
@@ -156,17 +182,26 @@ class server_coneckt:
 			transfer.update(ic_list) #funktions infos client
 			transfer['iot'] = {}
 			#wichtig bei übermittluhng wird nur IoT verwendet. iot[ic_chip][aktor]
+			'''
 			for x in ic_chip:
 				transfer['iot'][x] = ram[ic_chip[x]['icname']][x]['iot'] #aktorenliste
+			'''
+			transfer['iot'] = iot_ram['data']
 			
-			
-			print (transfer)
 			ret = self.sock2(transfer)
+			print (ret)
+			if 'sesession_id' in ret:
+				
+				ram['sesession_id'] = ret['sesession_id']
+			else:
+				logger.error('Fehler bei install daten in Master Server')	
 			
+			'''
 			#ret = '"ok"'
 			if ret != '"ok"':
 				logger.error('Fehler bei install daten in Master Server')
 				#print (ret)
+			'''
 
 	def check(self):
 	
@@ -182,6 +217,10 @@ class server_coneckt:
 			ram['stop'] = antwort['stop']
 			
 			ram['webupdate'] = antwort['webupdate']#!!!! muss eine ifabrfrage werden (aber auchg nur wichtig wenn KEIN Switch eingebaut ist !!!!!!!)
+			'''
+			hier dann nachher dann das IoT get
+			
+			'''
 			
 			ram['sensor'] = antwort['sensor']
 			
@@ -220,7 +259,7 @@ class server_coneckt:
 			
 			
 			server_address = ('localhost', 5050)#server adresse
-			print('connecting to {} port {}'.format(*server_address))
+			#print('connecting to {} port {}'.format(*server_address))
 			#print (data)
 			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#art der verbingdung
 			sock.connect(server_address)#verbindung herstellen
@@ -575,11 +614,9 @@ def main_loop():
 			
 			testersa = {'funktion':'delete','name':ic_list['name'] ,'host':ic_list['host']}
 			antwort = json.loads(socket_call.sock(json.dumps(testersa)))
+			print(ram)
+			print(iot_ram)
 			break #muss zum ende entfernt werden
-
-
-
-
 
 
 context = daemon.DaemonContext( #daemon konfig

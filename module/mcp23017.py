@@ -131,7 +131,7 @@ class mcp23017:
 		
 		ic2.close() 
 		
-		return('abfrage')
+		return(ram)
 		
 		
 	def function (self,adress,data,dataic):
