@@ -1,3 +1,4 @@
+# coding=utf8
 import daemon, os, time, sys, signal, lockfile, daemon.pidfile, socket, socketserver, json, logging, random,datetime
 from collections import defaultdict
 
@@ -50,7 +51,8 @@ name (server-client){
 "lasttime": 1510398777, letztes mal gemeldet
 "webupdate": 0, gab es ein update von einem webclient 
 "sensor" : 0, # abfrage von sensoren 
-"tsupdate": 0, # es gab ein update für den Timeslot
+
+"tsupdate": 0, # es gab ein update fuer den Timeslot
 "number"{ iclist
 "numer"{ config data
 
@@ -65,11 +67,34 @@ class iot():
 		funklist = {'array':'array',
 					'update':'update',
 					'push':'push',
+					'new_slot':'new_slot',
+					'server_client_get':'server_client_get',
+					'server_client_set':'server_client_set',
+					'web_new':'web_new',
+					'web_exist':'web_exist',
+					'web_array':'web_array',
+					'web_get':'web_get',
+					'web_set':'web_set'
 					}
 		checker = 0
 		for funk in funklist:
 			
+			#Old web clients delete
+			for x in iot_token:
+
+				if iot_token[x]['typ'] == 'webclient':
+
+					if self.time(iot_token[x]['time']) > 300:
+						
+						del iot_token[x]
+						logging.error(json.dumps('token gelöscht'))
+						
+
+			#do function		
 			if data['iotfunk'] == funk:
+				
+				
+	
 				ausgabe = getattr(self,funklist[data['iotfunk']])(data)
 				checker = 1
 			
@@ -78,27 +103,7 @@ class iot():
 				ausgabe = 'error in data '
 			
 		return (ausgabe)
-	
-	def array(self,data):
-		logging.error('array')
-		returner = {}
-		if 'sesession_id' in data:
-			
-			logging.error(data)
-			logging.error('client vorhanden')
-			
-			returner = ram 
-			
-			
-		else:
-			logging.error('new client')
-			sesession_id = sensor.new('',20)
-			iot_ram[sesession_id] = {}
-			iot_ram[sesession_id]['ram_lokal'] = ram
-			returner['sesession_id'] = sesession_id
-			
-		return (returner)
-		
+
 	def time (self,data):
 		if data == 'get':
 			
@@ -116,49 +121,77 @@ class iot():
 			laststamp = ((int(d)*86400)+(int(h)*3600)+(int(m)*60)+(int(s)))
 	
 			return (nowstamp - laststamp)
+			
 	
-	def push (self,data):
-
-		logging.error(data)
-		logging.error('push')
-		for x in data['new']:
-			idnew = sensor.new('',20)
-			logging.error(x)
-			#iot_ram[idnew] = {}
-			#iot_ram[idnew][x] = {}
-			iot_ram[data['sesession_id']][idnew] = {}
-			for y in data['new'][idnew]:
-				logging.error(y)
-				
-				#iot_ram[idnew][x][y] = data['new'][x][y]
-				iot_ram[data['sesession_id']][idnew][y] = data['new'][x][y]
-				
-				variable[data['new'][x]['host']][data['new'][x]['location']]['webupdate'] = 1
-				
-				returner = iot_ram
+	def new_slot(self,data):#returns a new token for web client/ client_server, reserves a new space on ram.
+	#erstellt einen token, in dem bereich wo es her kommt. und wo es hin geht. 
 		
-		return (returner)
-
-	def update(self,data): ##später gleicher rückweg wie hin
-		
-		for x in iot_ram[data['host']][data['location']]['iot'][data['ic_chip']]:
-			logging.error('update')
-		
-		returner = 'ja hier gibt es nun daten !!!'
-		logging.error('update')
+		token = sensor.new('',10)
 
 
-		
-	def server_get (self,data):
+	def server_client_get (self,data): #returns new data from web client 
 		
 		print('mumu')
 		
 	
-	def server_set(self,data):
+	def server_client_set(self,data): #sets data from server_client in ram with notification to web_clients
 		
 		print('mumu')
 			
+	
+	def web_exist (self,data): # Looks web id is Exist
+		ret = {}
+		ret['return'] = iot_token.get(data['session_id'], 'not exist')
+		
+		if ret['return'] != 'not exist':
+			ret['return'] = 'ok'
+		
+		return(ret)
+		
+		
+	def web_new (self,data): # sets new web_clients (usable for Client-server Plugins)
+		
+		token = sensor.new('',20)
+		iot_token[token] = {}
+		iot_token[token]['host'] = token
+		iot_token[token]['typ'] = 'webclient'
+		iot_token[token]['time'] = self.time('get')
+		
+		logging.error(json.dumps('iot_token'))
+		logging.error(json.dumps(iot_token))
+		ret = {}
+		ret['session_id'] = token
+		
+		return(ret)
 
+	def web_array (self,data): #push the entire iot_config 
+		ret = {}
+		for x in iot_token: #abfrage aller daten
+			
+			if iot_token[x]['typ'] == "server": #den inhalt von server daten abrufen
+				ret[iot_token[x]['host']] = {}
+				ret[iot_token[x]['host']][iot_token[x]['name']] = {}
+				
+				ret[iot_token[x]['host']][iot_token[x]['name']] = iot_config[iot_token[x]['host']][iot_token[x]['name']]
+		
+		
+		logging.error(json.dumps('iot_token'))
+		logging.error(json.dumps(iot_token))
+		logging.error(json.dumps('iot_config'))
+		logging.error(json.dumps(iot_config))
+		return (ret)
+		
+		
+	def web_get (self,data): #says the changes on client_server iot
+		
+		return (data)
+		
+	def web_set (self,data): #set data to client_server
+		
+		return (data)
+	
+
+	
 class sensor():#sensorabfrage classe
 
 	def eingang(self,data):#erste stelle wo daten reinkommen
@@ -226,7 +259,7 @@ class sensor():#sensorabfrage classe
 			variable[data['host']][data['name']]['update'] = 1
 			ifabgeholtgleich3 = 0
 			vergleich = 0
-			for x in sensor_ram[data['target_key']]: #überprüfen ob alle Clients sensor daten gesendet hat 
+			for x in sensor_ram[data['target_key']]: #ueberpruefen ob alle Clients sensor daten gesendet hat 
 				for y in sensor_ram[data['target_key']][x]:
 					vergleich += 1
 					if sensor_ram[data['target_key']][x][y]['abgeholt'] == 3:
@@ -234,7 +267,7 @@ class sensor():#sensorabfrage classe
 					
 						
 				
-			if ifabgeholtgleich3 == vergleich: #wenn alle daten übermittelet wurden. clients wieder auf normal stellung setzen
+			if ifabgeholtgleich3 == vergleich: #wenn alle daten uebermittelet wurden. clients wieder auf normal stellung setzen
 				ram[data['target_key']] = 1
 				for x in variable: #x ist name vom client
 					logging.debug('for')
@@ -374,14 +407,23 @@ class server(): # server standart Classe
 				logging.error(json.dumps(umwandel))
 				ret['sesession_id'] = sesession_id
 				ram[umwandel['host']][umwandel['name']]['sesession_id'] = sesession_id
+				#in refernz datenbank ablegen (durchsuchbar)
 				iot_token[sesession_id]['host'] = umwandel['host']
 				iot_token[sesession_id]['name'] = umwandel['name']
 				iot_token[sesession_id]['typ'] = 'server'
 				iot_token[sesession_id]['time'] = iot.time('','get')
+				#ablegen der IoT konfig data 
 				iot_config[umwandel['host']] = {}
 				iot_config[umwandel['host']][umwandel['name']]  = {}
 				iot_config[umwandel['host']][umwandel['name']] = umwandel['iot']
-				addnew.new_client(umwandel['name'], umwandel['host'])
+				
+				logging.error(json.dumps('iot_token'))
+				logging.error(json.dumps(iot_token))
+				logging.error(json.dumps('iot_config'))
+				logging.error(json.dumps(iot_config))
+				
+				
+				addnew.new_client(umwandel['name'], umwandel['host']) #erzeuge Timeslice 
 				#addnew.timeslicer()
 				logging.error(ret)
 				return json.dumps(ret)

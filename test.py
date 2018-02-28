@@ -1,7 +1,8 @@
-git commit <-- welche dateien (zum ankucken)
+import os, time, sys
 
-git add (datei/verzeichniss) zum Übertragen eintragen
+test = {}
+test['aa'] = 111
 
-git commit <-- öffenet sich datei es müssen die # entfernt werden
+print (test.get('bb', 'bb ist nicht da'))
 
-git push <-- zum hoch laden fertig machen
+print (test.get('aa', 'bb ist nicht da'))

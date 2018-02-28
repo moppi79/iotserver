@@ -1,3 +1,4 @@
+# coding=utf8
 import daemon, os, time, sys, signal, lockfile, daemon.pidfile, socket, logging, datetime, json, random
 
 from multiprocessing import Process, Queue
@@ -10,6 +11,7 @@ from sensors.bh1750 import bh1750
 from sensors.htu21d import htu21d
 from module.mcp23017 import mcp23017
 from module.pcf8574 import pcf8574
+from module.demoic import demoic
 
 pidfilename = 'clientpid'
 workingpath = '/net/html/iotserver'
@@ -53,7 +55,7 @@ ic_list {
 '''
 
 ic_chip = defaultdict(object)
-
+'''
 ic_chip[1] ={'icname':'mcp23017',
 			'adresse':0x20,
 			'num':7,#anzahl ports
@@ -71,6 +73,9 @@ ic_chip[1] ={'icname':'mcp23017',
 			7:[0x12,0x40,'in','on_off','Schalter draussen','0',[0x12,0x01]],
 			}}
 
+'''
+
+ic_chip[1] ={'icname':'demoic'}
 
 ic_chip[2] ={'icname':'pcf8574',
 			'display_name':'schreibisch_display',
@@ -98,7 +103,7 @@ iot_ram['data'] = {} #all iot interface data from modul or Plugin
 iot_ram['get'] = {} #get data from IoT server
 iot_ram['send'] = {} #send data to IoT server
 
-ic_class = {'mcp23017':mcp23017(),'pcf8574':pcf8574()}
+ic_class = {'mcp23017':mcp23017(),'pcf8574':pcf8574(),'demoic':demoic()}
 
 class i2c_abruf:
 	
@@ -117,7 +122,7 @@ class i2c_abruf:
 				ram[ic_chip[x]['icname']][x] = {}
 				ram[ic_chip[x]['icname']][x].update(classcall.install(ic_chip[x], x))
 				
-				iot_ram['data']['ic2_'+str(x)] = ram[ic_chip[x]['icname']][x]['iot']
+				iot_ram['data']['i2c_'+str(x)] = ram[ic_chip[x]['icname']][x]['iot']
 				
 	def icinit(self):
 		for x in ic_chip: ##Declare all ic Dic
