@@ -170,9 +170,9 @@ class iot():
 			
 			if iot_token[x]['typ'] == "server": #den inhalt von server daten abrufen
 				ret[iot_token[x]['host']] = {}
-				ret[iot_token[x]['host']][iot_token[x]['name']] = {}
+				ret[iot_token[x]['host']][iot_token[x]['zone']] = {}
 				
-				ret[iot_token[x]['host']][iot_token[x]['name']] = iot_config[iot_token[x]['host']][iot_token[x]['name']]
+				ret[iot_token[x]['host']][iot_token[x]['zone']] = iot_config[iot_token[x]['host']][iot_token[x]['zone']]
 		
 		
 		logging.error(json.dumps('iot_token'))
@@ -226,9 +226,9 @@ class sensor():#sensorabfrage classe
 			'''
 			retuerner = 'fail'
 
-			if sensor_ram[data['target_key']][data['host']][data['name']]['abgeholt'] == 0:
-				sensor_ram[data['target_key']][data['host']][data['name']]['abgeholt'] = 1 #auf abgeholt setzen
-				variable[data['host']][data['name']]['sensor'] = 0 #wieder auf 0 setzen 
+			if sensor_ram[data['target_key']][data['host']][data['zone']]['abgeholt'] == 0:
+				sensor_ram[data['target_key']][data['host']][data['zone']]['abgeholt'] = 1 #auf abgeholt setzen
+				variable[data['host']][data['zone']]['sensor'] = 0 #wieder auf 0 setzen 
 				logging.error('if abfrage')
 			
 			checker = {0:0, 1:0, 2:0, 3:0}#variable vorerstellen 0 noch kein target key, 1 key erhalten (wartet), 2(key erhalten ermittelt sensor daten), 3 Daten geliefert)
@@ -238,7 +238,7 @@ class sensor():#sensorabfrage classe
 
 			if checker[2] == 0:
 				
-				sensor_ram[data['target_key']][data['host']][data['name']]['abgeholt'] = 2 #holt nun date
+				sensor_ram[data['target_key']][data['host']][data['zone']]['abgeholt'] = 2 #holt nun date
 				retuerner = 'go'
 				logging.debug('go signal ')
 			else:
@@ -253,10 +253,10 @@ class sensor():#sensorabfrage classe
 			antwort ist immer 'ok'
 			'''
 			
-			sensor_ram[data['target_key']][data['host']][data['name']] = data['werte']
-			sensor_ram[data['target_key']][data['host']][data['name']]['abgeholt'] = 3 #auf geliefert gesetzt
-			variable[data['host']][data['name']]['stop'] = 1
-			variable[data['host']][data['name']]['update'] = 1
+			sensor_ram[data['target_key']][data['host']][data['zone']] = data['werte']
+			sensor_ram[data['target_key']][data['host']][data['zone']]['abgeholt'] = 3 #auf geliefert gesetzt
+			variable[data['host']][data['zone']]['stop'] = 1
+			variable[data['host']][data['zone']]['update'] = 1
 			ifabgeholtgleich3 = 0
 			vergleich = 0
 			for x in sensor_ram[data['target_key']]: #ueberpruefen ob alle Clients sensor daten gesendet hat 
@@ -317,21 +317,22 @@ class check():#standart abfrage von server-Clients
 		#logging.error(json.dumps(ram))
 		#logging.error(json.dumps(timeschlitz))
 		#logging.error('check anfrage')
-		if data['name'] in variable[data['host']]:
+		if data['zone'] in variable[data['host']]:
 		
-			if variable[data['host']][data['name']]['update'] == 1:
+			if variable[data['host']][data['zone']]['update'] == 1:
 				logging.error('new update call')
 				returner = {} #container erstellen
-				returner['stop'] = variable[data['host']][data['name']]['stop'] #stop signal
-				returner['webupdate'] = variable[data['host']][data['name']]['webupdate'] #ansage das Webupdate da ist (zusätzlicher Trigger)
-				returner['sensor'] = variable[data['host']][data['name']]['sensor'] #ansage, das er nun sensor daten liefern soll(geparrt mit STOP)
-				returner['tsupdate'] = variable[data['host']][data['name']]['tsupdate'] #wenn client sich neuen Time slot abhoilen soll
-				variable[data['host']][data['name']]['update'] = 0 #general update signal für update, eher wichtig für den server
+				returner['stop'] = variable[data['host']][data['zone']]['stop'] #stop signal
+				returner['kill'] = variable[data['host']][data['zone']]['kill'] #stop signal
+				returner['webupdate'] = variable[data['host']][data['zone']]['webupdate'] #ansage das Webupdate da ist (zusätzlicher Trigger)
+				returner['sensor'] = variable[data['host']][data['zone']]['sensor'] #ansage, das er nun sensor daten liefern soll(geparrt mit STOP)
+				returner['tsupdate'] = variable[data['host']][data['zone']]['tsupdate'] #wenn client sich neuen Time slot abhoilen soll
+				variable[data['host']][data['zone']]['update'] = 0 #general update signal für update, eher wichtig für den server
 			else:
 				returner = "ok" # standart antwort wenn es nichts neues gibt 
 				#logging.error('check')
 		else:
-			logging.error('not exist anymore'+data['name'])
+			logging.error('not exist anymore'+data['zone'])
 			returner = 'ok'
 			
 		return (returner)
@@ -386,7 +387,7 @@ class server(): # server standart Classe
 		if umwandel['funktion'] == 'add':#neuen client in ram einfügen
 			insertnew = 1
 			if umwandel['host'] in ram:#abfrage ob shon angemeldet
-				if umwandel['name'] in ram[umwandel['host']]:
+				if umwandel['zone'] in ram[umwandel['host']]:
 					returner = json.dumps('why')
 					return returner	
 				else:
@@ -397,7 +398,7 @@ class server(): # server standart Classe
 				
 			if insertnew == 1:##wenn user nicht angelegt ist
 				logging.error('new')
-				ram[umwandel['host']][umwandel['name']] = umwandel #in speicher einfügen
+				ram[umwandel['host']][umwandel['zone']] = umwandel #in speicher einfügen
 				#returner = json.dumps('ok') #ok senden
 				addnew = timer_san()
 				sesession_id = sensor.new('',20)
@@ -406,16 +407,16 @@ class server(): # server standart Classe
 				ret = {}
 				logging.error(json.dumps(umwandel))
 				ret['sesession_id'] = sesession_id
-				ram[umwandel['host']][umwandel['name']]['sesession_id'] = sesession_id
+				ram[umwandel['host']][umwandel['zone']]['sesession_id'] = sesession_id
 				#in refernz datenbank ablegen (durchsuchbar)
 				iot_token[sesession_id]['host'] = umwandel['host']
-				iot_token[sesession_id]['name'] = umwandel['name']
+				iot_token[sesession_id]['zone'] = umwandel['zone']
 				iot_token[sesession_id]['typ'] = 'server'
 				iot_token[sesession_id]['time'] = iot.time('','get')
 				#ablegen der IoT konfig data 
 				iot_config[umwandel['host']] = {}
-				iot_config[umwandel['host']][umwandel['name']]  = {}
-				iot_config[umwandel['host']][umwandel['name']] = umwandel['iot']
+				iot_config[umwandel['host']][umwandel['zone']]  = {}
+				iot_config[umwandel['host']][umwandel['zone']] = umwandel['iot']
 				
 				logging.error(json.dumps('iot_token'))
 				logging.error(json.dumps(iot_token))
@@ -423,7 +424,7 @@ class server(): # server standart Classe
 				logging.error(json.dumps(iot_config))
 				
 				
-				addnew.new_client(umwandel['name'], umwandel['host']) #erzeuge Timeslice 
+				addnew.new_client(umwandel['zone'], umwandel['host']) #erzeuge Timeslice 
 				#addnew.timeslicer()
 				logging.error(ret)
 				return json.dumps(ret)
@@ -455,23 +456,25 @@ class server(): # server standart Classe
 		
 		elif umwandel['funktion'] == 'stop': ## wenn sich etwas am Server-client ändert (damit inhalt variable geändert wird)
 			
-			logging.error('stop '+umwandel['name'])
+			logging.error('stop '+umwandel['zone'])
 			returner = json.dumps('nope')
-			if variable[umwandel['host']][umwandel['name']]['stop'] == 0:
-				logging.error('stop varibale setzen '+umwandel['name'])
-				variable[umwandel['host']][umwandel['name']]['stop'] = 1
-				variable[umwandel['host']][umwandel['name']]['update'] = 1
+			if variable[umwandel['host']][umwandel['zone']]['stop'] == 0:
+				logging.error('stop varibale setzen '+umwandel['zone'])
+				variable[umwandel['host']][umwandel['zone']]['stop'] = 1
+				variable[umwandel['host']][umwandel['zone']]['update'] = 1
+				if 'kill' in umwandel:
+					variable[umwandel['host']][umwandel['zone']]['kill'] = 1
 				returner = json.dumps('ok')
 			else:
 				#logging.error('else '+variable)
-				if variable[umwandel['host']][umwandel['name']]['update'] == 1:
-					logging.error('warten '+umwandel['name'])
+				if variable[umwandel['host']][umwandel['zone']]['update'] == 1:
+					logging.error('warten '+umwandel['zone'])
 					returner = json.dumps('wait')
 				else:
-					logging.error('absetzen delete '+umwandel['name'])
+					logging.error('absetzen delete '+umwandel['zone'])
 					logging.error('delete')
 					deleter = check()
-					ausgabe = deleter.delete(umwandel['name'],umwandel['host'])
+					ausgabe = deleter.delete(umwandel['zone'],umwandel['host'])
 					returner = json.dumps('kill')
 					if len(variable[umwandel['host']]) != 0:
 						logging.error('delete-create new time slice')
@@ -486,7 +489,7 @@ class server(): # server standart Classe
 		elif umwandel['funktion'] == 'delete': #wenn ein client nicht mehr benötigt wird 
 			logging.error('delete')
 			deleter = check()
-			ausgabe = deleter.delete(umwandel['name'],umwandel['host'])
+			ausgabe = deleter.delete(umwandel['zone'],umwandel['host'])
 			returner = json.dumps(ausgabe)
 			if len(variable[umwandel['host']]) != 0:
 				logging.debug('delete-create new time slice')
@@ -498,9 +501,9 @@ class server(): # server standart Classe
 		
 		elif umwandel['funktion'] == 'timeslice': #rückgabe neuer Timeslot 
 			logging.error('timeslicer_funk')
-			logging.error(json.dumps(timeschlitz[umwandel['host']][int(variable[umwandel['host']][umwandel['name']]['timeslot'])]))
-			variable[umwandel['host']][umwandel['name']]['tsupdate'] = 0
-			returner = json.dumps(timeschlitz[umwandel['host']][int(variable[umwandel['host']][umwandel['name']]['timeslot'])])
+			logging.error(json.dumps(timeschlitz[umwandel['host']][int(variable[umwandel['host']][umwandel['zone']]['timeslot'])]))
+			variable[umwandel['host']][umwandel['zone']]['tsupdate'] = 0
+			returner = json.dumps(timeschlitz[umwandel['host']][int(variable[umwandel['host']][umwandel['zone']]['timeslot'])])
 			
 			return returner
 		else:
@@ -564,6 +567,7 @@ class timer_san():
 		variable[host][name]['update'] = 1
 		variable[host][name]['sensor'] = 0
 		variable[host][name]['tsupdate'] = 0
+		variable[host][name]['kill'] = 0
 		variable[host][name]['aktor'] = {} #leerer container
 		if ram[host][name]['switch'] == 1:
 			variable[host][name]['switch'] = 1

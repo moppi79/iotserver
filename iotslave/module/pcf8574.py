@@ -111,7 +111,7 @@ class pcf8574:
 		for x in config['lineadress']: #retunrns a Dictonay --> return['lineX'] = {'adress':0x80,'value':'text'}
 			return_var['line'+str(x)] = {'adress':config['lineadress'][x],'value':'*install* line '+str(x)}
 			
-			print ('Line{}'.format(str(x)))
+			#print ('Line{}'.format(str(x)))
 		
 		return_var['string'] = '' #string long string
 		#IoT install. name:'text', value:'start value' typ:text/in/out/value usable:0/1,'id':'max char'
@@ -130,41 +130,42 @@ class pcf8574:
 
 	def comparison (self,ram):
 		return_var = {}
-		if ram['write'] != 0:
+
+		if ram['ram']['write'] != 0:
 		
-			if ram['property'] == 1:
+			if ram['ram']['property'] == 1:
 				
 				#disply write 
 				display  = 'dummy'
 			else:
-				print ('jo')
-				self.i2c = i2c_treiber(ram['adress'])
+				#print ('jo')
+				self.i2c = i2c_treiber(ram['ram']['adress'])
 				global LCD_BACKLIGHT
-				if ram['light'] == 1: #Set light on/off
+				if ram['ram']['light'] == 1: #Set light on/off
 					LCD_BACKLIGHT = 0x08
 				else:
 					LCD_BACKLIGHT = 0x00
 				
-				if ram['reset'] == 1: #Resert display
+				if ram['ram']['reset'] == 1: #Resert display
 					self.reset()
-					ram['reset'] = 0
+					ram['ram']['reset'] = 0
 					
-				if ram['write'] ==1: #Light on/off or Write text 
+				if ram['ram']['write'] ==1: #Light on/off or Write text 
 					self.i2c.write('zero',LCD_BACKLIGHT)
-					ram['write'] = 0
+					ram['ram']['write'] = 0
 				else:
-					print (LCD_BACKLIGHT)
-					ram['write_line'] += 1 #Line counting up
-					if ram['write_line'] == 1:
+					#print (LCD_BACKLIGHT)
+					ram['ram']['write_line'] += 1 #Line counting up
+					if ram['ram']['write_line'] == 1:
 						self.formating(0x01) ##clear Display	
 					
 					#return['lineX'] = {'adress':0x80,'value':'text'}
-					if ram['line'+str(ram['write_line'])]['value'] != '':
-						self.textsend(ram['line'+str(ram['write_line'])]['value'],ram['line'+str(ram['write_line'])]['adress'])
+					if ram['ram']['line'+str(ram['ram']['write_line'])]['value'] != '':
+						self.textsend(ram['ram']['line'+str(ram['ram']['write_line'])]['value'],ram['ram']['line'+str(ram['ram']['write_line'])]['adress'])
 					
-					if ram['write_line'] == ram['lines']: #when data Complete wrote, sets data to 0
-						ram['write_line'] = 0
-						ram['write'] = 0
+					if ram['ram']['write_line'] == ram['ram']['lines']: #when data Complete wrote, sets data to 0
+						ram['ram']['write_line'] = 0
+						ram['ram']['write'] = 0
 					
 					self.i2c.write('zero',LCD_BACKLIGHT)
 				
@@ -186,7 +187,7 @@ class pcf8574:
 		self.formating(LCD_ENTRYMODESET | LCD_ENTRYLEFT)
 		
 	def textsend(self,string,line):
-		print ('string:{} line:{}'.format(string,line))
+		#print ('string:{} line:{}'.format(string,line))
 		self.formating(line)
 		for char in string:
 			self.formating(ord(char), Rs)

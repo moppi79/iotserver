@@ -21,7 +21,7 @@ class i2c_treiber():
 				self.wr.write(bytearray([werte]))#in bus schreiben
 			except :
 				logging.warning('Fehler in i2c_treiber/write')
-				print('aa')
+				#print('aa')
 			
 		else:
 			try:
