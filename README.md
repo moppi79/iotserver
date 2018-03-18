@@ -1,7 +1,7 @@
 # iotserver
 is under construktion. 
 
-Es sind zwei server, für pyhton 3.x 
+es ist ein IoT framework , für pyhton 3.x 
 
 - iotserver
 
