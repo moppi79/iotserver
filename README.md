@@ -1,7 +1,7 @@
 # iotserver
 is under construktion. 
 
-Es sind zwei server 
+Es sind zwei server, für pyhton 3.x 
 
 - iotserver
 
