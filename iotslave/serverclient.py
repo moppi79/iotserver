@@ -59,6 +59,7 @@ ic_list {
 ic_chip = defaultdict(object)
 '''
 ic_chip[1] ={'icname':'mcp23017',
+			'ic_class':'mcp23017',
 			'adresse':0x20,
 			'num':7,#anzahl ports
 			'bank':2,#anzahl banken
@@ -77,9 +78,11 @@ ic_chip[1] ={'icname':'mcp23017',
 
 '''
 
-ic_chip[1] ={'icname':'demoic'}
+ic_chip[1] ={'icname':'demoic'
+			'ic_class':'demoic',}
 
-ic_chip[2] ={'icname':'pcf8574',
+ic_chip[2] ={'icname':'schreibtisch_display',
+			'ic_class':'pcf8574',
 			'display_name':'schreibisch_display',
 			'display_typ':'text', 
 			'adress':0x27,
@@ -123,23 +126,45 @@ class i2c_abruf:
 		else:
 			ram['firstrun'] = 1
 			
-			for x in ic_chip: ##Declare all ic Dic
+			for x in ic_chip: ##Declare all ic Dic (drivers own ram)
 				ram[ic_chip[x]['icname']] = {}
 			
 			for x in ic_chip:
-				classcall = ic_class[ic_chip[x]['icname']]
+				classcall = ic_class[ic_chip[x]['ic_class']]
 				
 				ram[ic_chip[x]['icname']][x] = {}
 				ram[ic_chip[x]['icname']][x].update(classcall.install(ic_chip[x], x))
 				
-				iot_ram['data']['i2c_'+str(x)] = ram[ic_chip[x]['icname']][x]['iot']
+				#iot_ram['data']['i2c_'+str(x)] = ram[ic_chip[x]['icname']][x]['iot']
+				
+				for y in ram[ic_chip[x]['icname']][x]['iss']: #create ISS update for gir 
+					
+					new_iss_number = thread.skirmish('',5)
+					
+					iss[new_iss_number] = {}
+					
+					iss[new_iss_number]['update'] = {}
+					
+					
+					iss[new_iss_number]['update']['host'] = ic_list['host']
+					iss[new_iss_number]['update']['zone'] = ic_list['zone']
+					iss[new_iss_number]['update']['name'] = ic_chip[x]['icname']
+					iss[new_iss_number]['update']['system'] = 'i2c'
+					
+					iss[new_iss_number]['data'] = {}
+					iss[new_iss_number]['data']['new'] = 1
+					iss[new_iss_number]['data']['id'] = ram[ic_chip[x]['icname']][x]['iss'][y]['id']
+					iss[new_iss_number]['data']['typ'] = ram[ic_chip[x]['icname']][x]['iss'][y]['typ']
+					iss[new_iss_number]['data']['value'] = ram[ic_chip[x]['icname']][x]['iss'][y]['value']
+				
+				
 				
 	def icinit(self):
 		for x in ic_chip: ##Declare all ic Dic
 			ram[ic_chip[x]['icname']] = {}
 
 		for x in ic_chip:
-			classcall = ic_class[ic_chip[x]['icname']]
+			classcall = ic_class[ic_chip[x]['ic_class']]
 				
 			ram[ic_chip[x]['icname']][x] = {}
 			ram[ic_chip[x]['icname']][x].update(classcall.install(ic_chip[x]))
@@ -147,25 +172,25 @@ class i2c_abruf:
 	def comparison(self):
 		
 		for x in ic_chip:
+			issdata = {}	
+			shadow_copy = iss.copy() 
+			for y in shadow_copy: #ob daten an den IC gehen sollen
+				
+				if (shadow_copy[y]['target']['system'] == 'i2c') and (shadow_copy[y]['target']['name'] == ic_chip[x]['icname']):
+					
+					issdata	= shadow_copy[y]
+					del iss[y] #daten löschen
 			
-			#iot_ram['data'] = {} #all config data iot interface data from modul or Plugin
-			#iot_ram['get'] = {} #get data from IoT server
-			#iot_ram['send'] = {} #send data to IoT server
-
+			shadow_copy.clear()
 			
-			
-			classcall = ic_class[ic_chip[x]['icname']]
+			classcall = ic_class[ic_chip[x]['ic_class']]
 			data_dic = {}
 			data_dic['ram'] = {}
 			data_dic['ram'] = ram[ic_chip[x]['icname']][x] 
 			
-			data_dic['iot'] = {} #hier iot werte !!!! 
-			'''
-			hier IoT werte einsammlen und dann in iot übermittelen
-			
-			'''
+
 			print ('test oben')
-			print (classcall.comparison(data_dic))
+			print (classcall.comparison(data_dic,issdata))
 			print ('test unten')
 			#return sollte dann 1:1 in den jeweiligen RAM 
 			#zurückspielbar sein 
@@ -254,7 +279,7 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 			self.thread_start(new_value,'')
 			
 			
-	def thread_start(self,name,girdata):
+	def thread_start(self,name,girdata): #start thread 
 		print ("start")
 		install = plugin_class[ram['pluginhold'][name]['name']]
 		config = {} #config data übertragen
@@ -280,13 +305,19 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 		shadow_copy = iss.copy() 
 		for i in shadow_copy: #send data to Plugin
 			if 'update' in shadow_copy[i]: #update global IoT data 
-				new_gir = {}
+				if 'plugin' in shadow_copy[i]:
+					kkkkkk = 1
+				else:
 				
-				new_gir['gir'] = self.array_create(shadow_copy[i])
-				del iss[i]
-				for x in ram['pluginhold']:
-
-					ram['pluginhold'][x]['queue_out'].put(new_gir)
+					new_gir = {}
+					
+					new_gir['gir'] = self.array_create(shadow_copy[i])
+					
+					iss[i]['plugin'] = 1
+					#del iss[i]
+					for x in ram['pluginhold']:
+	
+						ram['pluginhold'][x]['queue_out'].put(new_gir)
 
 			else: # check is target 
 			

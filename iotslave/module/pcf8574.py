@@ -115,8 +115,19 @@ class pcf8574:
 		
 		return_var['string'] = '' #string long string
 		#IoT install. name:'text', value:'start value' typ:text/in/out/value usable:0/1,'id':'max char'
-		return_var['iot'] ={}
-		return_var['iot'][1] = {'name':config['display_name'],'value':'', 'typ':'text','usable':1,'id':str(config['lines']*config['symbol'])}
+		#return_var['iot'] ={}
+		#return_var['iot'][1] = {'name':config['display_name'],'value':'', 'typ':'text','usable':1,'id':str(config['lines']*config['symbol'])}
+		
+		return_var['iss'] ={}
+		return_var['iss'][1] ={}
+		return_var['iss'][1]['typ'] = 'display'
+		return_var['iss'][1]['id'] = 'display_liegend'
+		return_var['iss'][1]['value'] = ''
+		return_var['iss'][2] ={}
+		return_var['iss'][2]['typ'] = 'display_write_lock'
+		return_var['iss'][2]['id'] = 'display_write_loc'
+		return_var['iss'][2]['value'] = 0
+		
 		return(return_var)
 		
 		
