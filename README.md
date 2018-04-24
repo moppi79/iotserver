@@ -19,3 +19,5 @@ alle plugins werden per ISS bedient.
 der IoT slave kann auf einem sytem mehrfach gestartet werden wenn man ein Multiplexer modul verwendet. 
 und somit auf einem gerät mehre zonen haben. die dann auch ein eigenes timing auf dem I²C/SPI haben. 
 
+
+Wiki seite erstellt 
