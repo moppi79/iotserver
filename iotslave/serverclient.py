@@ -13,7 +13,8 @@ from module.mcp23017 import mcp23017
 from module.pcf8574 import pcf8574
 from module.demoic import demoic
 
-from plugin.basic import basic
+#from plugin.basic import basic
+from thread import thread_class
 
 pidfilename = 'clientpid'
 workingpath = '/net/html/iotserver'
@@ -76,10 +77,8 @@ ic_chip[1] ={'icname':'mcp23017',
 			7:[0x12,0x40,'in','on_off','Schalter draussen','0',[0x12,0x01]],
 			}}
 
-'''
 
-ic_chip[1] ={'icname':'demoic'
-			'ic_class':'demoic',}
+
 
 ic_chip[2] ={'icname':'schreibtisch_display',
 			'ic_class':'pcf8574',
@@ -92,6 +91,12 @@ ic_chip[2] ={'icname':'schreibtisch_display',
 						2:0xC0,
 						3:0x94,
 						4:0xD4}}
+						
+'''
+
+ic_chip[1] ={'icname':'demoic',
+			'ic_class':'demoic'}
+
 
 sensordic = defaultdict(object)		
 			
@@ -107,7 +112,7 @@ ram['pluginhold'] = {}
 iss = {} #IoT space system
 gir = {} #Global IoT RAM
 
-plugin_class = {'basic':basic()}
+plugin_class = {'basic2','text_display'}
 ic_class = {'mcp23017':mcp23017(),'pcf8574':pcf8574(),'demoic':demoic()}
 
 
@@ -139,17 +144,20 @@ class i2c_abruf:
 				
 				for y in ram[ic_chip[x]['icname']][x]['iss']: #create ISS update for gir 
 					
-					new_iss_number = thread.skirmish('',5)
+					new_iss_number = thread.skirmish('',10)
 					
 					iss[new_iss_number] = {}
 					
+					iss[new_iss_number]['sender'] = {}
 					iss[new_iss_number]['update'] = {}
 					
+					iss[new_iss_number]['update']['new'] = 1
 					
-					iss[new_iss_number]['update']['host'] = ic_list['host']
-					iss[new_iss_number]['update']['zone'] = ic_list['zone']
-					iss[new_iss_number]['update']['name'] = ic_chip[x]['icname']
-					iss[new_iss_number]['update']['system'] = 'i2c'
+					iss[new_iss_number]['sender']['host'] = ic_list['host']
+					iss[new_iss_number]['sender']['host'] = ic_list['host']
+					iss[new_iss_number]['sender']['zone'] = ic_list['zone']
+					iss[new_iss_number]['sender']['name'] = ic_chip[x]['icname']
+					iss[new_iss_number]['sender']['system'] = 'i2c'
 					
 					iss[new_iss_number]['data'] = {}
 					iss[new_iss_number]['data']['new'] = 1
@@ -175,11 +183,11 @@ class i2c_abruf:
 			issdata = {}	
 			shadow_copy = iss.copy() 
 			for y in shadow_copy: #ob daten an den IC gehen sollen
-				
-				if (shadow_copy[y]['target']['system'] == 'i2c') and (shadow_copy[y]['target']['name'] == ic_chip[x]['icname']):
-					
-					issdata	= shadow_copy[y]
-					del iss[y] #daten löschen
+				if 'target' in shadow_copy[y]:
+					if (shadow_copy[y]['target']['system'] == 'i2c') and (shadow_copy[y]['target']['name'] == ic_chip[x]['icname']):
+						
+						issdata	= shadow_copy[y]
+						del iss[y] #daten löschen
 			
 			shadow_copy.clear()
 			
@@ -253,14 +261,20 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 	
 		
 		for x in plugin_class: #abfrage von allen plugins
-			install = plugin_class[x]
 			
-			ausgabe = install.install()
+			
+			thread_install_data = thread_class()
+
+			ausgabe = thread_install_data.install_thread_data(x,logger)
+			
+			#ausgabe = install.install(logger)
+			
 			new_value = self.skirmish(5)
 			ram['pluginhold'][new_value] = {} #erzeugen Container
 			ram['pluginhold'][new_value]['name'] = x
 			
 			if 'iss' in ausgabe: ## wenn iot daten bei der install schon in den bus müssen 
+				'''
 				grounddata = {}	
 				grounddata['sender'] = {}
 				grounddata['sender']['host'] = ic_list['host']
@@ -269,11 +283,21 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 				grounddata['sender']['system'] = 'plugin'
 				grounddata['update'] = {}
 				grounddata['update']['new'] = 1
-
+				'''	
 				for a in ausgabe['iss']:
 					dataskirmisch = self.skirmish(10)
 					iss[dataskirmisch] = {}
-					iss[dataskirmisch] = grounddata
+					#iss[dataskirmisch].update(grounddata)
+					
+					iss[dataskirmisch]['sender'] = {}
+					iss[dataskirmisch]['sender']['host'] = ic_list['host']
+					iss[dataskirmisch]['sender']['zone'] = ic_list['zone']
+					iss[dataskirmisch]['sender']['name'] = ausgabe['name']
+					iss[dataskirmisch]['sender']['system'] = 'plugin'
+					iss[dataskirmisch]['update'] = {}
+					iss[dataskirmisch]['update']['new'] = 1
+					
+					
 					iss[dataskirmisch]['data'] = ausgabe['iss'][a]
 				
 			self.thread_start(new_value,'')
@@ -281,7 +305,9 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 			
 	def thread_start(self,name,girdata): #start thread 
 		print ("start")
-		install = plugin_class[ram['pluginhold'][name]['name']]
+		thread_run = thread_class()
+
+		#install = plugin_class[ram['pluginhold'][name]['name']]
 		config = {} #config data übertragen
 		config['host'] = ic_list['host']
 		config['zone'] = ic_list['zone']
@@ -289,7 +315,7 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 		
 		ram['pluginhold'][name]['queue_in'] = Queue() # Queue erstellen iput from Plugin
 		ram['pluginhold'][name]['queue_out'] = Queue() # Queue erstellen send data to Plugin
-		ram['pluginhold'][name]['prozess'] = Process(target=install.run, name=ram['pluginhold'][name]['name'], args=(ram['pluginhold'][name]['queue_out'],ram['pluginhold'][name]['queue_in'],config,girdata)) #prozess vorbereiten
+		ram['pluginhold'][name]['prozess'] = Process(target=thread_run.run, name=ram['pluginhold'][name]['name'], args=(ram['pluginhold'][name]['queue_out'],ram['pluginhold'][name]['queue_in'],config,girdata,logger)) #prozess vorbereiten
 		ram['pluginhold'][name]['prozess'].start() # Prozzes starten
 	
 	def comparison(self):
@@ -299,24 +325,29 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 				kkkkkk = 1
 			else:
 				self.thread_start(x,gir)
+				logger.error('Plugin death:'+ram['pluginhold'][x]['name'])
 				print ('bin tot')
 		
 		
-		shadow_copy = iss.copy() 
+		shadow_copy = iss.copy()
+		
+		print ('schadow copy')
+		print (shadow_copy)
+		
 		for i in shadow_copy: #send data to Plugin
 			if 'update' in shadow_copy[i]: #update global IoT data 
-				if 'plugin' in shadow_copy[i]:
+				
+				if 'plugin' in shadow_copy[i]: # wenn data schon übermittelt wurden
 					kkkkkk = 1
 				else:
-				
 					new_gir = {}
 					
-					new_gir['gir'] = self.array_create(shadow_copy[i])
+					new_gir['gir'] = self.array_create(shadow_copy[i]) #transform Gir für die übermittlung 
 					
-					iss[i]['plugin'] = 1
+					iss[i]['plugin'] = 1 #zur überprüfung damit daten nicht doppelt übermittelt werden
 					#del iss[i]
 					for x in ram['pluginhold']:
-	
+						logger.error(json.dumps(new_gir))
 						ram['pluginhold'][x]['queue_out'].put(new_gir)
 
 			else: # check is target 
@@ -351,7 +382,7 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 					for k in ausgabe:
 					
 						new_key = self.skirmish(10)
-						iss[new_key] = ausgabe[k]
+						iss[new_key] = ausgabe[k] #data , id , value, ['target']['host'] , etc,
 						iss[new_key]['sender'] = {}
 						iss[new_key]['sender']['host'] = ic_list['host']
 						iss[new_key]['sender']['zone'] = ic_list['zone']
@@ -390,6 +421,8 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 		return(ausgabe)
 		
 	def array_create(self,data): ##update und retrn data satz
+		print ('array_create')
+		print (data)
 		ret = {}
 		
 		if data['sender']['host'] in gir:
@@ -398,7 +431,7 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 		else:
 			gir[data['sender']['host']] = {}
 			ret[data['sender']['host']] = {}
-		
+
 		if data['sender']['zone'] in gir[data['sender']['host']]:
 			ret[data['sender']['host']][data['sender']['zone']] = {}
 		else:
@@ -465,7 +498,7 @@ class server_coneckt:
 			transfer['iot'] = iot_ram['data']
 			
 			ret = self.sock2(transfer)
-			print (ret)
+			#print (ret)
 			logger.error(json.dumps(ret))
 			if 'sesession_id' in ret:
 				
@@ -611,8 +644,11 @@ def main_loop():
 	print('Server Initalisiern ende')
 	logger.error('server initalisiert')
 	
+	print('thearad Initalisiern')
 	plugin_obj = thread()
-
+	print('thearad Initalisiern ende')
+	logger.error('therad  initalisiert')
+	
 	iot_obj = iot()
 	
 
@@ -621,8 +657,8 @@ def main_loop():
 		#break
 		########### Loop Time Management head #############
 		start = ms_time(0)
-		print (start)
-		print('start')
+		#print (start)
+		#print('start')
 		sleeptime_i2c_wait = 0
 		'''
 		if secondloop != ms_time(1): #every new second
@@ -673,8 +709,8 @@ def main_loop():
 							
 			ram['timeslice_runtime']['max'] = count 
 			ram['timeslice_runtime']['second_now'] = ms_time(1)
-			print('hier wait')
-			print(wait)
+			#print('hier wait')
+			#print(wait)
 			time.sleep(wait)
 			
 			i2ccall.switch() # Multiplex config
@@ -684,7 +720,7 @@ def main_loop():
 		
 		################### Plugin Call ###################
 		
-		plugin_obj.comparison()
+		#plugin_obj.comparison()
 		
 		#logger.error(json.dumps(iss))
 		################### Plugin Call ###################
@@ -702,7 +738,7 @@ def main_loop():
 					zahl = now_timer - ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])]
 					prozentzahl = int((zahl / ram['timeslice']['schlitzzeit']) * 100) #prozentualer anteil im zeitschlitz
 					#print ( 'ergebniss {}. now: {}'.format(zahl, ram['timeslice']['schlitzzeit']))
-					print ( 'hier die zahl {} %'.format(prozentzahl))
+					#print ( 'hier die zahl {} %'.format(prozentzahl))
 
 					i2ccall.switch()# wenn Multiplexer vorhanden dann nun multiplexer einstellen
 					i2ccall.comparison() #ausführen
@@ -715,19 +751,19 @@ def main_loop():
 							ram['timeslice_runtime']['timeslice'] += 1
 				else:
 					#print('error')
-					print ('neu slice') 
+					#print ('neu slice') 
 					loop1 = 1
 					lastnumber = 0
 					while ram['timeslice_runtime']['max'] >= loop1:
 						#'timeslice': {'6': 833330, '5': 666664, '1': 0, '4': 499998, '3': 333332, 'schlitzzeit': 166666, '2': 166666}, 
 						# 'timeslice_runtime': {'max': 6, 'second_now': 54, 'timeslice': 5},
 						if loop1 == ram['timeslice_runtime']['max'] and lastnumber == 0:
-							print('fast')
+							#print('fast')
 							ram['timeslice_runtime']['timeslice'] = 1
 							sleeptime_i2c_wait = 1
 						else:	
 							if ram['timeslice'][str(loop1)] < now_timer and ram['timeslice'][str(loop1+1)] > now_timer:
-								print('yeah')
+								#print('yeah')
 								ram['timeslice_runtime']['timeslice'] = loop1+1
 								lastnumber = 1
 								sleeptime_i2c_wait = 1
@@ -736,7 +772,7 @@ def main_loop():
 
 			else:
 				print('vergleich ohne switch')
-				#i2ccall.comparison() #ausführen
+				i2ccall.comparison() #ausführen
 		else:
 			print('stop')
 				
@@ -749,14 +785,14 @@ def main_loop():
 			#logger.error('checker halb')
 			loop_server_call = 1
 			socket_call.check()
-			print (ms_time(0) - ministart )
+			#print (ms_time(0) - ministart )
 			
 			
 		if loop_server_call == 1 and ms_time(0) > 500000:
 			#logger.error('checker voll')
 			loop_server_call = 0
 			socket_call.check()
-			print (ms_time(0) - ministart )
+			#print (ms_time(0) - ministart )
 			
 		
 		################### ServerCall End ###################
@@ -802,7 +838,7 @@ def main_loop():
 		################### Sensor Call END ###################		
 		
 		################### prototypinm ###################	
-		
+		'''
 		if 'proto' in ram:
 			
 			if ram['proto']['sec']  != ms_time(1):
@@ -821,7 +857,7 @@ def main_loop():
 			ram['proto'] = {}
 			
 			ram['proto']['sec'] = ms_time(1)
-			
+		'''	
 		
 		
 		################### prototypinm END ###################	
@@ -844,10 +880,10 @@ def main_loop():
 		speed = (durchschnitt_erreichnet - run) / 1000000
 		if speed < 0: 
 			speed = 0.1 #when speed negativ
-			print ('negativ speed!!!!')
-		print ('footer')
-		print (speed)	
-		print ('footer')
+			#print ('negativ speed!!!!')
+		#print ('footer')
+		#print (speed)	
+		#print ('footer')
 		
 		if sleeptime_i2c_wait == 1: #update time i2c Multiplex wait 
 			if ram['timeslice_runtime']['timeslice'] == 1:
@@ -855,10 +891,10 @@ def main_loop():
 				speed = ((1000000 - stop) + (ram['timeslice']['1'])) / 1000000
 				
 				
-				print ('nummer 1 speed neu: {} ,stop: {} ram: {} '.format(speed,stop,ram['timeslice']['1']))
+				#print ('nummer 1 speed neu: {} ,stop: {} ram: {} '.format(speed,stop,ram['timeslice']['1']))
 			else:	
 				speed = (ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])] - stop) / 1000000 
-				print ('speed neu: {} '.format(speed))
+				#print ('speed neu: {} '.format(speed))
 		time.sleep(speed)# calculated Sleep
 		loopspeed += run
 		loopcounter += 1
@@ -875,7 +911,12 @@ def main_loop():
 		if 'loopcountdebug' == sys.argv[1]:
 			loopmaster += 1
 			if loopmaster > int(sys.argv[2]):
+				print ('######## RAM #########')
 				print(ram)
+				print ('######## GIR #########')
+				print(gir)
+				print ('######## ISS #########')
+				print(iss)
 				testersa = {'funktion':'delete','zone':ic_list['zone'] ,'host':ic_list['host']}
 			
 				antwort = json.loads(socket_call.sock(json.dumps(testersa)))
@@ -891,9 +932,13 @@ def main_loop():
 			
 			testersa = {'funktion':'delete','zone':ic_list['zone'] ,'host':ic_list['host']}
 			antwort = json.loads(socket_call.sock(json.dumps(testersa)))
-			plugin_obj.end()
+			#plugin_obj.end()
+			print ('######## RAM #########')
 			print(ram)
-			print(iot_ram)
+			print ('######## GIR #########')
+			print(gir)
+			print ('######## ISS #########')
+			print(iss)
 			break #muss zum ende entfernt werden
 
 
