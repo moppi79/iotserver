@@ -23,11 +23,14 @@ class data_server(): #demo server
 			
 			io = datahelper()
 			in_data = io.transmit('',0)## abfragen ob neue daten anstehen
-			ret = {}
+			ret = ''
+			
 			print (in_data)
 			print ('server')
 			in_data_copy = in_data.copy()
+			
 			for x in in_data_copy:
+				ret = {}
 				print ('do server stuff !!!')
 				print (in_data[x])
 				
@@ -36,7 +39,8 @@ class data_server(): #demo server
 				del in_data[x]
 			
 			print (ret)
-			#in_data = io.transmit(ret,0)
+			if ret != '':
+				in_data = io.transmit(ret,0)
 			
 			time.sleep(0.2)
 			
@@ -52,10 +56,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         exit = 0 
         loop_control = True
         
-        print ('TCP thread')
+        print ('TCP thread neu gestartet')
         ###########to become a free Data Slot #################
         while loop_control: 
-        	print ('hier')
+        	
         	if anwser == 0:
         		loop_count = loop_count+ 1
         	
@@ -76,11 +80,31 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         data = self.request.recv(10024).strip() #### hier muss ich die bytes noch dynamisch erstellen lassen
         rawdata = data.decode('utf-8')
         
-       
+        TCP2Server_queue_stack[own_slot]['data'].put(rawdata)
+        TCP2Server_queue_stack[own_slot]['ready'].put(own_slot)
+        
+        #########
+        trigger = True
+        loop = 0
+        while trigger:
+        	
+        	
+        	if TCP2Server_queue_stack[own_slot]['ready_return'].empty() != True:
+        		dataout = TCP2Server_queue_stack[own_slot]['data'].get()
+        		trigger = False
+        	else:
+        		print('not ready')
+        		time.sleep(0.9)
+        		
+        	loop = loop + 1
+        	
+        	if loop == 10:
+        		dataout='Server error'
+        		trigger = False
         
         #call = server()
         #dataout = call.new_data(rawdata)
-        dataout = 'hup'
+        #dataout = 'hup'
         ausgabe = dataout.encode('utf8')
         self.request.sendall(ausgabe)
 
@@ -97,22 +121,26 @@ class datahelper ():
 		
 		loop_control = True
 		loopnum = 1
-		ret = ''
+		ret = {}
 		one = 0
 		two = 0
 		count = 1
 		while loop_control:
-			print ('one {} : two {}, loop num {},typ:{},me{},target{}'.format(one,two,loopnum,typ,me,target))
-			if Io_stack[loopnum]['lock'].empty() != True:
+			print ('one {} : two {}, loopnum:{},typ:{},me:{},target:{} ### datain : {} #####'.format(one,two,loopnum,typ,me,target,in_data))
+			if Io_stack[loopnum]['lock'].empty() == True:
 				Io_stack[loopnum]['lock'].put('data')
+				print ('test test test ')
+				if Io_stack[loopnum]['data_to_'+target+''].empty() != True:
+					ret = Io_stack[loopnum]['data_to_'+target+''].get()
+					print (ret)
+					
+				if type (in_data) == dict:
+					print('#####data insert#####')
+					Io_stack[loopnum]['data_to_'+me+''].put(in_data)
+					in_data = ''
 				
-				if Io_stack[loopnum]['data_to_'+target].empty() != True:
-					ret = Io_stack[loopnum]['data_to_'+target].get
-				
-				if in_data != '':
-					Io_stack[loopnum]['data_to_'+me].put('data')
-				
-				garbage = Io_stack[loopnum]['lock'].get
+			
+				garbage = Io_stack[loopnum]['lock'].get()
 				
 				
 			print ('nope')
@@ -124,14 +152,14 @@ class datahelper ():
 				two = 1
 			#loop_control = False
 			count = count + 1	
-			time.sleep(0.5)
+			#time.sleep(0.5)
 			if count == 10:
 				loop_control = False
 			
 			if one == 1 and two == 1:
 				loop_control = False
 	
-		return ({1:'lalal'})
+		return (ret)
 
 	
 
@@ -142,7 +170,7 @@ class data_handle_TCP2Server (): ##### TCP Multiplex Service
 		
 		loop_count = 0
 		TCP_handler_stack = {}
-		print (TCP2Server_queue_stack)
+		
 		
 		while loop_count < TCP2Server_queue_stack['max_client']:
 			loop_count = loop_count + 1
@@ -152,47 +180,85 @@ class data_handle_TCP2Server (): ##### TCP Multiplex Service
 			TCP_handler_stack[loop_count]['data'] = ''
 			
 			
-			datasend = {}
-			
+		
+		datasend = {}
+		stage_one_helper = 0	
 		loop_count = 0
 		while True:
-			print ('server_data_handle')
-			print ('##########')
-			print (loop_count)
-			print (TCP2Server_queue_stack['max_client'])
-			print ('##########')
+
 			while loop_count < TCP2Server_queue_stack['max_client']:
 				loop_count = loop_count + 1
-				print ('while')
+				
 				
 				if TCP_handler_stack[loop_count]['stage'] == 0: ### TCP new Slot #####
 					
 					if TCP2Server_queue_stack[loop_count]['lock'].empty() != True:
+						print ('obtain slot')
 						name = TCP2Server_queue_stack[loop_count]['ready'].get()
 						TCP_handler_stack[loop_count]['name'] = name
-						TCP_handler_stack[loop_count] = 1
+						TCP_handler_stack[loop_count]['stage'] = 1
 				
 				elif TCP_handler_stack[loop_count]['stage'] == 1: ### Get Data from TCP stack #####
 					
 					if TCP2Server_queue_stack[loop_count]['ready'].empty() != True: ## when data has been written
+						print('stage Get Data from TCP stack')
 						datasend[TCP_handler_stack[loop_count]['name']] = TCP2Server_queue_stack[loop_count]['data'].get()
 						carbage = TCP2Server_queue_stack[loop_count]['ready'].get()
+						TCP_handler_stack[loop_count]['stage'] = 2
+						stage_one_helper = 1
 						
-				elif TCP_handler_stack[loop_count]['stage'] == 2:
-					print('stage')
-				elif TCP_handler_stack[loop_count]['stage'] == 3:
-					print('stage')
-				elif TCP_handler_stack[loop_count]['stage'] == 4:
-					print('stage')
-				
-				print (loop_count)
-				
+				elif TCP_handler_stack[loop_count]['stage'] == 2: #### Return data to TCP stack
+					
+					if TCP_handler_stack[loop_count]['data'] != '':
+						print('stage return to TCP stack')
+						print ('datinhalt{}'.format(TCP_handler_stack[loop_count]['data']))
+						TCP2Server_queue_stack[loop_count]['data'].put(TCP_handler_stack[loop_count]['data']) ###
+						TCP2Server_queue_stack[loop_count]['ready_return'].put('1')
+						TCP_handler_stack[loop_count]['stage'] = 3
+					
+				elif TCP_handler_stack[loop_count]['stage'] == 3: #### freeing space Handle space
+					print('stage freeing slot')
+					if TCP2Server_queue_stack[loop_count]['ready'].empty() != True:
+					
+						TCP_handler_stack[loop_count]['stage'] = 0
+						TCP_handler_stack[loop_count]['name'] = ''
+						TCP_handler_stack[loop_count]['data'] = ''
+						
+						garbage = TCP2Server_queue_stack[loop_count]['data'].get()
+						garbage = TCP2Server_queue_stack[loop_count]['ready'].get()
+						garbage = TCP2Server_queue_stack[loop_count]['ready_return'].get()
+						garbage = TCP2Server_queue_stack[loop_count]['lock'].get()
+					
+					
+				else:
+					print('MASSIVE ERROR')
+			################ Ende WHILE ####################################					
+			
+			if stage_one_helper == 1:
+				stage_one_helper = 0
+			else:
+				datasend = ''
+			
+			print (datasend)
 			io = datahelper()
-			out_data = io.transmit(datasend,1)## daten an server übermittelen 
+			in_data = io.transmit(datasend,1)## daten an server übermittelen 
+			datasend = {}
+			print (in_data)
+			for x in in_data: 
+				print ('xxxxxx hier ist x = {}'.format(x))
+				for y in TCP_handler_stack:
+					print ('xxxxxx hier ist y = {}'.format(y))
+					if TCP_handler_stack[y]['name'] == x:
+						TCP_handler_stack[y]['data'] = in_data[x]
+			
+			
+			print (TCP_handler_stack)
+			
 			print ('ende ???')
 			loop_count = 0
-			time.sleep(1)
-			print ('ende !!!???')
+			datasend = {}
+			time.sleep(0.5)
+			
 
 
 def Demon_start():
@@ -216,18 +282,21 @@ def Demon_start():
 			TCP2Server_queue_stack[loop_count] = {}
 			TCP2Server_queue_stack[loop_count]['lock'] = Queue() 
 			TCP2Server_queue_stack[loop_count]['ready'] = Queue() 
-			TCP2Server_queue_stack[loop_count]['Data'] = Queue() 
+			TCP2Server_queue_stack[loop_count]['ready_return'] = Queue() 
+			TCP2Server_queue_stack[loop_count]['data'] = Queue() 
 			print (loop_count)
 		
 		#Stack to server data
 		Io_stack = {}
+		
 		Io_stack[1] = {}
-		Io_stack[2] = {}
 		Io_stack[1]['data_to_server'] = Queue()
-		Io_stack[2]['data_to_client'] = Queue()
-		Io_stack[1]['data_to_server'] = Queue()
-		Io_stack[2]['data_to_client'] = Queue()
+		Io_stack[1]['data_to_client'] = Queue()
 		Io_stack[1]['lock'] = Queue()
+		
+		Io_stack[2] = {}
+		Io_stack[2]['data_to_client'] = Queue()
+		Io_stack[2]['data_to_server'] = Queue()
 		Io_stack[2]['lock'] = Queue()
 		
 		#############
@@ -247,10 +316,10 @@ def Demon_start():
 
 		while True: #basic run 
 			testcount = testcount + 1 
-			print ('hier haupt prozess')
+			print ('haupt prozess {}'.format(testcount))
 			#print (server_thread.enumerate())
 			time.sleep(1) 
-			if testcount == 3:
+			if testcount == 5:
 				stopper = 1
 				break
 				
@@ -269,11 +338,17 @@ def Demon_start():
 				loop_count = loop_count + 1
 				TCP2Server_queue_stack[loop_count]['lock'].close
 				TCP2Server_queue_stack[loop_count]['ready'].close
-				TCP2Server_queue_stack[loop_count]['in'].close
-				TCP2Server_queue_stack[loop_count]['out'].close
+				TCP2Server_queue_stack[loop_count]['ready_return'].close
+				TCP2Server_queue_stack[loop_count]['data'].close
+			
+			Io_stack[1]['data_to_server'].close
+			Io_stack[2]['data_to_client'].close
+			Io_stack[1]['data_to_server'].close
+			Io_stack[2]['data_to_client'].close
+			Io_stack[1]['lock'].close
+			Io_stack[2]['lock'].close
 				
-				
-			print(TCP2Server_queue_stack)
+			#print(TCP2Server_queue_stack)
 			break
 
 
