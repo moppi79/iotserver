@@ -15,31 +15,27 @@ logger.addHandler(fh)
 
 stopper = 0 
 
-class data_server(): #demo server
+class data_server(): #Server Thread
 	
 	def io():
 		
 		in_data = {}
 		
-		while True:
-			
+		while True: #main while 
 				
 			sleepi = True
-			while sleepi:
+			while sleepi: ##Standby while
 				time.sleep(0.01)
 				if TCP2Server_queue_stack['aktive'].empty() != True:
-					print ('aktive verbindung')
 					sleepi = False
 
 			io = datahelper()
-			in_data = io.transmit('',0)## abfragen ob neue daten anstehen
+			in_data = io.transmit('',0)## check on new data
 			ret = ''
 			#logging.error('test')
-			print (in_data)
-			print ('server')
 			in_data_copy = in_data.copy()
 			
-			for x in in_data_copy:
+			for x in in_data_copy: #JSON catch
 				try:
 					umwandel = json.loads(in_data_copy[x])
     		
@@ -49,18 +45,17 @@ class data_server(): #demo server
 					logging.error('Fehlerhafte JSON data')
 					logging.error(err)
 				
-				if ret == '':
+				if ret == '': #when more than one entry selektor
 					ret = {}
-				print (umwandel)
+				
 				if 'server_control' in umwandel: ## abfangen von server deamon befehle 
 					print ('close')
 					demon_queue_data['close'].put('1')
 					ret[x] = json.dumps({'data':'end'})
 				else:
-					print ('do server stuff !!!')
 					try:
-						ret[x] = json.dumps({'ret':umwandel['data']+' hier mit verbesserten inhalt'})
-						logging.error('thread: {}, data: {}'.format(x,json.dumps(in_data[x])))
+						ret[x] = json.dumps({'ret':umwandel['data']+' hier mit verbesserten inhalt'}) ###Doing server call
+						logging.debug('thread: {}, data: {}'.format(x,json.dumps(in_data[x])))
 					except ValueError as err:
 						logging.error('Fehlerhafte JSON data')
 						logging.error(err)
@@ -72,16 +67,15 @@ class data_server(): #demo server
 				
 				del in_data[x]
 			
-			print (ret)
-			if ret != '':
-				logging.error('Return data from server: {}'.format(json.dumps(ret)))
+			if ret != '': #whend data must be submittet
+				logging.debug('Return data from server: {}'.format(json.dumps(ret)))
 				in_data = io.transmit(ret,0)
 			
 			time.sleep(0.02)
 			
 
 
-class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
+class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler): #In comeing TCP data
 
 	def handle(self):
 		# self.request is the TCP socket connected to the client
@@ -94,8 +88,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         ###########to become a free Data Slot #################
 		while loop_control: 
 			if TCP2Server_queue_stack['aktive'].empty() == True:
-				TCP2Server_queue_stack['aktive'].put('1')
-				print ('TCP thread neu gestartet')
+				TCP2Server_queue_stack['aktive'].put('1') #wake up system 
 				logging.error('thread start: {}'.format(cur_thread.name))
 			if anwser == 0:
 				loop_count = random.randrange(1,TCP2Server_queue_stack['max_client'])
@@ -115,26 +108,29 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 				break
         
         ######### Put data in the slot ##############
-		data = self.request.recv(10024).strip() #### hier muss ich die bytes noch dynamisch erstellen lassen
+		count = self.request.recv(10).strip() #### handle dynamic byte count
+		lenght = int(count.decode('utf8'))
+		self.request.sendall('ok'.encode('utf8'))
+		
+		
+		data = self.request.recv(lenght).strip() #### handle data
 		rawdata = data.decode('utf8')
-        
+
 		TCP2Server_queue_stack[own_slot]['data'].put(rawdata)
 		TCP2Server_queue_stack[own_slot]['ready'].put(own_slot)
         
         #########
 		trigger = True
 		loop = 0
-		while trigger:
+		while trigger: #waiting server task done
 			if TCP2Server_queue_stack[own_slot]['ready_return'].empty() != True:
 				dataout = TCP2Server_queue_stack[own_slot]['data'].get()
 				trigger = False
-			else:
-				print('not ready')
 
 			time.sleep(0.2)
 			loop = loop + 1
 			print (loop)
-			if loop > 20:
+			if loop > 20: #when server takes over 2 seconds to progess the data. force to close
 				dataout='Server error'
 
 				logging.error('TCP servre error, thread: {}'.format(cur_thread.name))
@@ -147,17 +143,16 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
 					garbage = TCP2Server_queue_stack[own_slot]['data'].get()
         		
 				garbage = TCP2Server_queue_stack[own_slot]['lock'].get()
-        
-        #call = server()
-        #dataout = call.new_data(rawdata)
-        #dataout = 'hup'
-		ausgabe = dataout.encode('utf8')
-		print ('serversend')
-		print (own_slot)
+		
+		#return data to client
 		TCP2Server_queue_stack[own_slot]['ready'].put(own_slot)
-		self.request.sendall(ausgabe)
+		length = len(dataout)
+		self.request.sendall(bytes(str(length), 'utf8'))
+		response = str(self.request.recv(10), 'utf8')
+		
+		self.request.sendall(dataout.encode('utf8'))
 		self.request.close()
-
+		
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
@@ -188,12 +183,9 @@ class datahelper (): #data transver helper TCP Multiplexer <--> Server Thread
 					
 					Io_stack[loopnum]['data_to_'+me+''].put(in_data)
 					in_data = ''
-				
-			
+
 				garbage = Io_stack[loopnum]['lock'].get()
-				
-				
-			
+
 			if loopnum == 1:
 				one = 1
 				loopnum = 2
@@ -211,34 +203,28 @@ class datahelper (): #data transver helper TCP Multiplexer <--> Server Thread
 	
 		return (ret)
 
-	
-
-
-class data_handle_TCP2Server (): ##### TCP Multiplex Service
+class data_handle_TCP2Server (): ##### TCP Multiplex Service (threaded)
 	
 	def start():
 		
 		loop_count = 0
 		TCP_handler_stack = {}
-		
-		
-		while loop_count < TCP2Server_queue_stack['max_client']:
+
+		while loop_count < TCP2Server_queue_stack['max_client']: #### generate data stack
 			loop_count = loop_count + 1
 			TCP_handler_stack[loop_count] = {}
 			TCP_handler_stack[loop_count]['name'] = ''
 			TCP_handler_stack[loop_count]['stage'] = 0
 			TCP_handler_stack[loop_count]['data'] = ''
-			
-			
-		
+
 		datasend = {}
 		stage_one_helper = 0	
 		loop_count = 0
 		sleep_loop_delay = 0
-		while True:
+		while True: #### main while 
 			
 			sleepi = True
-			while sleepi: ### Sleep loop when non aktive TCP Transmit
+			while sleepi: ### Sleep loop when non aktive TCP connection
 				time.sleep(0.01)
 				if TCP2Server_queue_stack['aktive'].empty() != True:
 					print ('aktive verbindung')
@@ -254,88 +240,68 @@ class data_handle_TCP2Server (): ##### TCP Multiplex Service
 					
 					if TCP2Server_queue_stack[loop_count]['lock'].empty() != True:
 						sleeper = 1 #checker for aktive connecktion
-						print ('obtain slot')
-						
 						name = TCP2Server_queue_stack[loop_count]['ready'].get()
 						TCP_handler_stack[loop_count]['name'] = name
 						TCP_handler_stack[loop_count]['stage'] = 1
-						logging.error('multiplex slot: {}, thread: {},stage: {}'.format(loop_count,TCP_handler_stack[loop_count]['name'],TCP_handler_stack[loop_count]['stage']))
+						logging.debug('multiplex slot: {}, thread: {},stage: {}'.format(loop_count,TCP_handler_stack[loop_count]['name'],TCP_handler_stack[loop_count]['stage']))
 				
 				elif TCP_handler_stack[loop_count]['stage'] == 1: ### Get Data from TCP stack #####
 					sleeper = 1 #checker for aktive connecktion
 					
 					if TCP2Server_queue_stack[loop_count]['ready'].empty() != True: ## when data has been written
-						print('stage Get Data from TCP stack')
 						datasend[TCP_handler_stack[loop_count]['name']] = TCP2Server_queue_stack[loop_count]['data'].get()
 						carbage = TCP2Server_queue_stack[loop_count]['ready'].get()
 						TCP_handler_stack[loop_count]['stage'] = 2
 						stage_one_helper = 1
-						logging.error('multiplex slot: {}, thread: {},stage: {}'.format(loop_count,TCP_handler_stack[loop_count]['name'],TCP_handler_stack[loop_count]['stage']))
+						logging.debug('multiplex slot: {}, thread: {},stage: {}'.format(loop_count,TCP_handler_stack[loop_count]['name'],TCP_handler_stack[loop_count]['stage']))
 						
 				elif TCP_handler_stack[loop_count]['stage'] == 2: #### Return data to TCP stack
 					sleeper = 1 #checker for aktive connecktion
 					
 					if TCP_handler_stack[loop_count]['data'] != '':
-						print('stage return to TCP stack')
-						print ('datinhalt{}'.format(TCP_handler_stack[loop_count]['data']))
 						TCP2Server_queue_stack[loop_count]['data'].put(TCP_handler_stack[loop_count]['data']) ###
 						TCP2Server_queue_stack[loop_count]['ready_return'].put('1')
 						TCP_handler_stack[loop_count]['stage'] = 3
-						logging.error('multiplex slot: {}, thread: {},stage: {}'.format(loop_count,TCP_handler_stack[loop_count]['name'],TCP_handler_stack[loop_count]['stage']))
+						logging.debug('multiplex slot: {}, thread: {},stage: {}'.format(loop_count,TCP_handler_stack[loop_count]['name'],TCP_handler_stack[loop_count]['stage']))
 					
 				elif TCP_handler_stack[loop_count]['stage'] == 3: #### freeing space Handle space
 					
 					sleeper = 1 #checker for aktive connecktion
 					if TCP2Server_queue_stack[loop_count]['ready'].empty() != True:
-						print (TCP_handler_stack)
 						TCP_handler_stack[loop_count]['stage'] = 0
 						TCP_handler_stack[loop_count]['name'] = ''
 						TCP_handler_stack[loop_count]['data'] = ''
-						print (TCP_handler_stack)
-						#garbage = TCP2Server_queue_stack[loop_count]['data'].get()
 						garbage = TCP2Server_queue_stack[loop_count]['ready'].get()
 						garbage = TCP2Server_queue_stack[loop_count]['ready_return'].get()
 						garbage = TCP2Server_queue_stack[loop_count]['lock'].get()
-						print ('ALL CLEAR')
-					
-					
 				else:
-					print('MASSIVE ERROR')
+					logging.error('multiplex slot Massive error')
 			################ Ende WHILE ####################################					
 			
 			if stage_one_helper == 1:
 				stage_one_helper = 0
 			else:
 				datasend = ''
-				
 
-			
-			#print (datasend)
 			io = datahelper()
 			in_data = io.transmit(datasend,1)## daten an server übermittelen 
 			datasend = {}
 			print (in_data)
 			for x in in_data: 
-				#print ('xxxxxx hier ist x = {}'.format(x))
+
 				for y in TCP_handler_stack:
-					#print ('xxxxxx hier ist y = {}'.format(y))
+
 					if TCP_handler_stack[y]['name'] == x:
 						TCP_handler_stack[y]['data'] = in_data[x]
-						logging.error(json.dumps('data from server, Thread: {}, data: {}'.format(x,in_data[x])))
-			
-			
-			print (TCP_handler_stack)
-			
-			print ('ende ???')
-			
+						logging.debug(json.dumps('data from server, Thread: {}, data: {}'.format(x,in_data[x])))
+
 			if sleeper == 0: ###sleep delay
 				sleep_loop_delay = sleep_loop_delay + 1
 			else:
 				sleep_loop_delay = 0
 				
-			if sleep_loop_delay == 5:
-				print ('sleper')
-				logging.error('multiplex sleep')
+			if sleep_loop_delay == 5: #sets server in Standby
+				logging.debug('multiplex sleep')
 				sleep_loop_delay = 0
 				garbage = TCP2Server_queue_stack['aktive'].get()
 			loop_count = 0
@@ -344,7 +310,7 @@ class data_handle_TCP2Server (): ##### TCP Multiplex Service
 			
 
 
-def Demon_start():
+def Demon_start(): #### main Thread
 	logging.error(json.dumps('Server Start'))
 	while True:
 
@@ -389,17 +355,15 @@ def Demon_start():
 		
 		#############
 		
-		data_server_prozess = Process(target=data_server.io) #Starte Dataserver
+		data_server_prozess = Process(target=data_server.io) #start server thread
 		data_server_prozess.start()
 		
-		tcp2server_prozess = Process(target=data_handle_TCP2Server.start) #Start Data progress for TCP Stack
+		tcp2server_prozess = Process(target=data_handle_TCP2Server.start) #Start TCP demultiplexer
 		tcp2server_prozess.start()
 		
 		#######################
-		server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler)
+		server = ThreadedTCPServer((HOST, PORT), ThreadedTCPRequestHandler) #define TCP
 		ip, port = server.server_address
-		#2 = server.handle_timeout()
-		
 		server_thread = threading.Thread(target=server.serve_forever) #Start Main TCP servive
 		server_thread.daemon = False
 		server_thread.start()
@@ -410,16 +374,13 @@ def Demon_start():
 		while True: #basic run
 		
 			if data_server_prozess.is_alive() != True:
-				print ('server tot')
-				logging.error(json.dumps('server tot'))
+				logging.error(json.dumps('server Thread non aktive'))
 				stopper = 1
 			if tcp2server_prozess.is_alive() != True:
-				print ('TCP Multiplexer tot')
-				logging.error(json.dumps('TCP Multiplexer tot'))
+				logging.error(json.dumps('TCP Multiplexer non aktive'))
 				stopper = 1
 			if server_thread.is_alive() != True:
-				print ('TCP Thread tot')
-				logging.error(json.dumps('TCP Multiplexer tot'))
+				logging.error(json.dumps('TCP thread non active'))
 				stopper = 1
 		
 			if demon_queue_data['close'].empty() != True: ### close signal
@@ -430,16 +391,16 @@ def Demon_start():
 			print ('haupt prozess {}'.format(testcount))
 			#print (server_thread.enumerate())
 			time.sleep(1) 
-			
-			if testcount == 50:
+			'''
+			if testcount == 10:
 				stopper = 1
-			
-			
+			'''#### debug mode 
+
 			if stopper == 1:
 				break
 		############  Debugger run #########		
 		
-		if stopper == 1:
+		if stopper == 1: #### server shutdown
 			
 			loop_count = 0
 			
@@ -467,7 +428,6 @@ def Demon_start():
 			
 			demon_queue_data['close'].close
 			logging.error(json.dumps('Server Shutdown'))
-			#print(TCP2Server_queue_stack)
 			break
 
 
@@ -481,7 +441,7 @@ context = daemon.DaemonContext( #daemon konfig
 
 )
 
-Demon_start()
+#Demon_start()
 if len(sys.argv) == 2:
 	if 'start' == sys.argv[1]:
 		
@@ -514,16 +474,26 @@ if len(sys.argv) == 2:
 				Demon_start()
 				
 	elif 'stop' == sys.argv[1]:
-		def client(ip, port, message):
+		def client(ip, port, message): ### This can be used as simple client 
 			with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 				sock.connect((ip, port))
+				#### SEND DATA #####
+				length = len(message)
+				sock.sendall(bytes(str(length), 'utf8'))
+				response = str(sock.recv(10), 'utf8')
 				sock.sendall(bytes(message, 'utf8'))
-				response = str(sock.recv(1024), 'utf8')
-				print("Received: {}".format(response))
+				#### SEND DATA #####
+       
+				 ###Bekome data #####
+				count = str(sock.recv(10).strip(), 'utf8')
+				sock.sendall(bytes('ok', 'utf8'))
+				response = str(sock.recv(int(count)), 'utf8')
+				print("Received count: {}".format(response))
+				###Bekome data #####
 				sock.close()
-		        
+		print ('sending Close signal')       
 		client(HOST, PORT, json.dumps({'server_control':'close','data':'hier client:'}))
-		print ('beendet.....')
+		print ('server stopped.....')
 		logging.error('server stop')
 	elif 'restart' == sys.argv[1]:
 		print ("lala") ##noch nichts geplant
@@ -536,6 +506,3 @@ if len(sys.argv) == 2:
 else:
    	print ("usage: %s start|stop|restart") 
 sys.exit(2)
-
-
-#####Junk zum testen ######
