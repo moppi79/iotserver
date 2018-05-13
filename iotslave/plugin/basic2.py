@@ -1,6 +1,35 @@
 from multiprocessing import Process, Queue
 import os, time, random, datetime, json
 
+class gir_check:
+	
+	def __init__(self):
+		self.loop = 0
+		self.max_value = 0
+		self.return_value = True
+
+	def check(self,target,values): #prüft ob inhalt vorhanden, gibt true oder false aus
+		self.loop = -1
+		self.return_value = True
+		self.max_value = 0
+		
+		for k in values:
+			self.max_value = self.max_value + 1
+
+		self.rekursiv(target,values)
+		
+		return(self.return_value)
+
+	def rekursiv (self,target,value):
+		self.loop = self.loop + 1
+		if value[self.loop] in target:
+			if type (target[value[self.loop]]) == dict:
+				if (self.loop + 1) != self.max_value:
+					self.rekursiv(target[value[self.loop]],value)
+				
+		else:
+			self.return_value = False
+
 class basic2:
 	
 	def install(self,logger): #install im ram 
@@ -18,10 +47,9 @@ class basic2:
 			
 		return(ret)
 		
-	def work (self,data_work):
-		print ('############################ RUN ################################')
+	def work (self,data_work,gir,ownram):
 		ret = {}
-		
+		check_verzeichniss = gir_check()
 		if data_work != '':
 			
 			
@@ -52,11 +80,27 @@ class basic2:
 				array[1]['data']['value'] = data_work['data']['value']
 				'''
 		else:
-				
-	
-			x = 2
-		
-		return (ret)
+			array = {}
+			array[1] = {}
+			array[1]['target'] = {}
+			array[1]['data'] = {}
+			array[1]['target']['host'] = 'raspi2'
+			array[1]['target']['name'] = 'demoic'
+			array[1]['target']['zone'] = 'balkon'
+			array[1]['target']['system'] = 'i2c'
+			array[1]['data']['id'] = '1'
+			ownram[1] = 1111
+			if check_verzeichniss.check(gir,['raspi2','balkon','i2c','demoic','1']) == True:
+				print ('###########---################')
+				print (gir['raspi2']['balkon']['i2c']['demoic']['1']['value'])
+				if gir['raspi2']['balkon']['i2c']['demoic']['1']['value'] == '1':
+					array[1]['data']['value'] = 0
+					print ('########### HIER DIE 0 ###############')
+				else:
+					array[1]['data']['value'] = 1
+					print ('########### HIER DIE 1 ###############')
+
+		return ([array,ownram])
 		
 	def time (self,data):
 		if data == 'get':

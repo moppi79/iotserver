@@ -16,6 +16,8 @@ from module.demoic import demoic
 #from plugin.basic import basic
 from thread import thread_class
 
+HOST, PORT = "localhost", 5050 ##adresse und port vom server-server
+
 pidfilename = 'clientpid'
 workingpath = '/net/html/iotserver'
 
@@ -138,11 +140,13 @@ class i2c_abruf:
 				classcall = ic_class[ic_chip[x]['ic_class']]
 				
 				ram[ic_chip[x]['icname']][x] = {}
-				ram[ic_chip[x]['icname']][x].update(classcall.install(ic_chip[x], x))
-				
+				#ram[ic_chip[x]['icname']][x].update(classcall.install(ic_chip[x], x))
+				data_install = classcall.install(ic_chip[x])
+				ram[ic_chip[x]['icname']][x]['ram'] = data_install[0]
 				#iot_ram['data']['i2c_'+str(x)] = ram[ic_chip[x]['icname']][x]['iot']
 				
-				for y in ram[ic_chip[x]['icname']][x]['iss']: #create ISS update for gir 
+				#for y in ram[ic_chip[x]['icname']][x]['iss']: #create ISS update for gir 
+				for y in data_install[1]: #create ISS update for gir 
 					
 					new_iss_number = thread.skirmish('',10)
 					
@@ -160,11 +164,13 @@ class i2c_abruf:
 					iss[new_iss_number]['sender']['system'] = 'i2c'
 					
 					iss[new_iss_number]['data'] = {}
+					iss[new_iss_number]['data'] = data_install[1][y]
 					iss[new_iss_number]['data']['new'] = 1
-					iss[new_iss_number]['data']['id'] = ram[ic_chip[x]['icname']][x]['iss'][y]['id']
-					iss[new_iss_number]['data']['typ'] = ram[ic_chip[x]['icname']][x]['iss'][y]['typ']
-					iss[new_iss_number]['data']['value'] = ram[ic_chip[x]['icname']][x]['iss'][y]['value']
-				
+					
+					print ('##############')
+					print (iss)
+					print ('##############')
+
 				
 				
 	def icinit(self):
@@ -185,21 +191,37 @@ class i2c_abruf:
 			for y in shadow_copy: #ob daten an den IC gehen sollen
 				if 'target' in shadow_copy[y]:
 					if (shadow_copy[y]['target']['system'] == 'i2c') and (shadow_copy[y]['target']['name'] == ic_chip[x]['icname']):
-						
-						issdata	= shadow_copy[y]
+						print('################ es sind daten da #########################')
+						issdata[y] = {}
+						issdata[y]	= shadow_copy[y]
 						del iss[y] #daten löschen
 			
 			shadow_copy.clear()
-			
-			classcall = ic_class[ic_chip[x]['ic_class']]
-			data_dic = {}
-			data_dic['ram'] = {}
-			data_dic['ram'] = ram[ic_chip[x]['icname']][x] 
-			
 
-			print ('test oben')
-			print (classcall.comparison(data_dic,issdata))
-			print ('test unten')
+			classcall = ic_class[ic_chip[x]['ic_class']]
+
+			data_return = classcall.comparison(ram[ic_chip[x]['icname']][x]['ram'],issdata)
+			
+			ram[ic_chip[x]['icname']][x]['ram'] = data_return[0]
+			
+			for y in data_return[1]:
+				new_iss_number = thread.skirmish('',10)
+					
+				iss[new_iss_number] = {}
+				
+				iss[new_iss_number]['sender'] = {}
+				iss[new_iss_number]['update'] = {}
+				
+				iss[new_iss_number]['sender']['host'] = ic_list['host']
+				iss[new_iss_number]['sender']['host'] = ic_list['host']
+				iss[new_iss_number]['sender']['zone'] = ic_list['zone']
+				iss[new_iss_number]['sender']['name'] = ic_chip[x]['icname']
+				iss[new_iss_number]['sender']['system'] = 'i2c'
+				
+				iss[new_iss_number]['data'] = {}
+				iss[new_iss_number]['data'] = data_return[1][y]
+				iss[new_iss_number]['update']['new'] = 0
+
 			#return sollte dann 1:1 in den jeweiligen RAM 
 			#zurückspielbar sein 
 			'''
@@ -242,8 +264,18 @@ class iot:
 	def update(self):
 		
 		print ('update')
+		update_copy = iss.copy()
+		for x in update_copy:
+			if 'plugin' in update_copy[x]:
+				print 
+				print ('del')
+				del iss[x]
+			else:
+				print ('kein plugin')
 		
-		print (iss)
+		
+		#print (iss)
+		
 		
 		
 		'''
@@ -326,20 +358,17 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 			else:
 				self.thread_start(x,gir)
 				logger.error('Plugin death:'+ram['pluginhold'][x]['name'])
-				print ('bin tot')
+				print ('bin tot '+ram['pluginhold'][x]['name'])
 		
 		
 		shadow_copy = iss.copy()
-		
-		print ('schadow copy')
-		print (shadow_copy)
+
+		#print (shadow_copy)
 		
 		for i in shadow_copy: #send data to Plugin
 			if 'update' in shadow_copy[i]: #update global IoT data 
 				
-				if 'plugin' in shadow_copy[i]: # wenn data schon übermittelt wurden
-					kkkkkk = 1
-				else:
+				if 'plugin' not in shadow_copy[i]: # wenn data schon übermittelt wurden
 					new_gir = {}
 					
 					new_gir['gir'] = self.array_create(shadow_copy[i]) #transform Gir für die übermittlung 
@@ -347,7 +376,7 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 					iss[i]['plugin'] = 1 #zur überprüfung damit daten nicht doppelt übermittelt werden
 					#del iss[i]
 					for x in ram['pluginhold']:
-						logger.error(json.dumps(new_gir))
+						#logger.error(json.dumps(new_gir))
 						ram['pluginhold'][x]['queue_out'].put(new_gir)
 
 			else: # check is target 
@@ -388,8 +417,7 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 						iss[new_key]['sender']['zone'] = ic_list['zone']
 						iss[new_key]['sender']['name'] = ram['pluginhold'][x]['name']
 						iss[new_key]['sender']['system'] = 'plugin'
-						
-					
+
 					#print (array1)
 				##übertragen von daten zum Thread
 
@@ -462,6 +490,14 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 			ret[data['sender']['host']][data['sender']['zone']][data['sender']['system']][data['sender']['name']][data['data']['id']] = {}
 
 		
+		for x in data['data']:
+			if x != 'id':
+				print (x)
+				gir[data['sender']['host']][data['sender']['zone']][data['sender']['system']][data['sender']['name']][data['data']['id']][x] = data['data'][x]
+				ret[data['sender']['host']][data['sender']['zone']][data['sender']['system']][data['sender']['name']][data['data']['id']][x] = data['data'][x]
+		
+		
+		'''
 		gir[data['sender']['host']][data['sender']['zone']][data['sender']['system']][data['sender']['name']][data['data']['id']]['value'] = data['data']['value']
 		if 'typ' in data['data']:
 			gir[data['sender']['host']][data['sender']['zone']][data['sender']['system']][data['sender']['name']][data['data']['id']]['typ'] = data['data']['typ']
@@ -473,7 +509,7 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 			ret[data['sender']['host']][data['sender']['zone']][data['sender']['system']][data['sender']['name']][data['data']['id']]['typ'] = data['data']['typ']
 		else:
 			ret[data['sender']['host']][data['sender']['zone']][data['sender']['system']][data['sender']['name']][data['data']['id']]['typ'] = gir[data['sender']['host']][data['sender']['zone']][data['sender']['system']][data['sender']['name']][data['data']['id']]['typ']
-		
+		'''
 
 		return (ret)
 
@@ -516,12 +552,9 @@ class server_coneckt:
 	def check(self):
 	
 		verbindung = server_coneckt() #Client steuerung 
-		
+		#logger.error('check')
 		data = {'funktion':'check','zone':ic_list['zone'], 'host':ic_list['host']}
-		#jsonstring = json.dumps(data)
-		#antwort = json.loads(verbindung.sock(json.dumps(data))) #daten senden und holen
 		antwort = verbindung.sock2(data)
-		#antwort = json.loads(verbindung.sock(jsonstring))
 		if antwort != 'ok':
 			logger.error('änderung check')
 			ram['stop'] = antwort['stop']
@@ -562,21 +595,35 @@ class server_coneckt:
 		
 		if 'funktion' in data:
 			json_string = json.dumps(data)
+			print (json_string)
+			if data['funktion'] != 'check':
+				logger.error('send data to server: {}'.format(json_string))
+			with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+				sock.connect((HOST, PORT))
+				#### SEND DATA #####
+				length = len(json_string)
+				sock.sendall(bytes(str(length), 'utf8'))
+				response = str(sock.recv(10), 'utf8')
+				sock.sendall(bytes(json_string, 'utf8'))
+				#### SEND DATA #####
+
+				###Bekome data #####
+				count = str(sock.recv(10).strip(), 'utf8')
+				print("Received count: {}".format(count))
+				sock.sendall(bytes('ok', 'utf8'))
+        
+				datain = str(sock.recv(int(count)).strip(), 'utf8')
+				print("Received count: {}".format(datain))
+				###Bekome data #####
+				sock.close()
 			
-			
-			server_address = ('localhost', 5050)#server adresse
-			#print('connecting to {} port {}'.format(*server_address))
-			#print (data)
-			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)#art der verbingdung
-			sock.connect(server_address)#verbindung herstellen
-			sock.sendall(json_string.encode('utf8'))#befehl senden
-			datain = sock.recv(1024).strip()#daten empfangen und leerzeichen entfernen
-			sock.close()
 			try:
-				returner = json.loads(datain.decode('utf-8'))
+				returner = json.loads(datain)
 			except ValueError as error:
 				logger.error('Fehlerhafte daten bekommen',datain)
-				
+			
+			if returner != 'ok':
+				logger.error('data from server: {}'.format(json.dumps(returner)))	
 			return returner #return daten
 		else:
 			logger.error('keine funktion übermittelt')
@@ -720,7 +767,7 @@ def main_loop():
 		
 		################### Plugin Call ###################
 		
-		#plugin_obj.comparison()
+		plugin_obj.comparison()
 		
 		#logger.error(json.dumps(iss))
 		################### Plugin Call ###################
@@ -863,7 +910,7 @@ def main_loop():
 		################### prototypinm END ###################	
 		
 		################### IoT transfer ###################	
-		iot_obj.update
+		iot_obj.update()
 		################### IoT Transfer ###################	
 		
 		########### Loop Time Management foot #############
@@ -878,9 +925,7 @@ def main_loop():
 		durchschnitt_erreichnet = 1000000 / abfragen_sec # ms / abfragen die sec.
 		
 		speed = (durchschnitt_erreichnet - run) / 1000000
-		if speed < 0: 
-			speed = 0.1 #when speed negativ
-			#print ('negativ speed!!!!')
+
 		#print ('footer')
 		#print (speed)	
 		#print ('footer')
@@ -895,12 +940,16 @@ def main_loop():
 			else:	
 				speed = (ram['timeslice'][str(ram['timeslice_runtime']['timeslice'])] - stop) / 1000000 
 				#print ('speed neu: {} '.format(speed))
+		print (speed)
+		if speed < 0: 
+			speed = 0.05 #when speed negativ
+			print ('negativ speed!!!!')
 		time.sleep(speed)# calculated Sleep
 		loopspeed += run
 		loopcounter += 1
 		########### Loop Time Management Foot #############
 		
-		if ram['kill'] == 1:
+		if ram['kill'] == 1: ### Normal Programm end
 			
 			plugin_obj.end()
 			logger.error('programm wurde beendet')
@@ -917,10 +966,11 @@ def main_loop():
 				print(gir)
 				print ('######## ISS #########')
 				print(iss)
-				testersa = {'funktion':'delete','zone':ic_list['zone'] ,'host':ic_list['host']}
-			
-				antwort = json.loads(socket_call.sock(json.dumps(testersa)))
 				plugin_obj.end()
+				testersa = {'funktion':'delete','zone':ic_list['zone'],'host':ic_list['host']}
+			
+				antwort = socket_call.sock2(testersa)
+				
 				#print (ram['timeslice'])
 				print ('programm ende')
 				break #zum solo testen muss am schluss entfernt werden
@@ -929,10 +979,10 @@ def main_loop():
 
 		
 		if 'singledebug' == sys.argv[1]:
-			
-			testersa = {'funktion':'delete','zone':ic_list['zone'] ,'host':ic_list['host']}
-			antwort = json.loads(socket_call.sock(json.dumps(testersa)))
-			#plugin_obj.end()
+			plugin_obj.end()
+			testersa = {'funktion':'delete','zone':ic_list['zone'],'host':ic_list['host']}
+			antwort = socket_call.sock2(testersa)
+			print (antwort)
 			print ('######## RAM #########')
 			print(ram)
 			print ('######## GIR #########')

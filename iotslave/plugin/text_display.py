@@ -3,6 +3,7 @@ import os, time, sys, logging, datetime, random
 class text_display:
 	
 	def install(self,logger):
+		print ('############################ install text_display ################################')
 		return_data = {}
 		
 		return_data ['name'] = 'text_display'
@@ -20,6 +21,7 @@ class text_display:
 		
 		return (return_data);
 		
-	def work (self,data_work):
-		
+	def work (self,data_work,gir,ownram):
+		print ('############################ RUN text_display ################################')
 		x = 1
+		return(['',ownram])

@@ -76,6 +76,7 @@ class thread_class:
 		self.ram = {}
 		self.ram['config'] = config
 		global gir
+		Thread_ram = {} 
 		
 		thread_run = eval(self.ram['config']['name']+'()')
 		
@@ -90,60 +91,68 @@ class thread_class:
 			gir = girdata
 			
 		
-		time.sleep(2)
+		time.sleep(1) ###### muss am schluss entfernt werden
 		copx = dict_copy()
 		while True:
+			
+			no_direkt_data = 1
 			#logger.error('test while in theard')
-			logger.error(json.dumps(self.ram))
-			print (self.ram)
+			#logger.error(json.dumps(self.ram))
+			
 			returndata = ''
 			z = 1
 			if in_data.empty() != True:
 				
 				array = {}
 				while in_data.qsize() != 0: #alle verfügabren daten abrufen 
-					logger.error('z!=1')
+					#logger.error('z!=1')
 					data1 = in_data.get()
 					array[z] = data1
 					z = z + 1
 			
 			if z != 1:
-				logger.error('z!=1')
+				#logger.error('z!=1')
 				for x in array:
-					logger.error('for schleife')
-					logger.error(json.dumps(array[x]))
+					#logger.error('for schleife')
+					#logger.error(json.dumps(array[x]))
 					if 'gir' in array[x]:
-						print ('############################################################')
-						print (array[x])
+
 						copx.copy(array[x]['gir'],'gir')
-						print (gir)
-						print ('############################################################')
-						
-						
-						
+
 					else:
+						print ('############### with data #############')
+						no_direkt_data = 0
+						returndata = thread_run.work(array[x]['gir'],gir,Thread_ram) #iss data komplete
+
+						Thread_ram = returndata[1]
+						if returndata[0] != '':
+			
+							for h in returndata[0]:
+								print ('########### return data ############')
+								print (returndata[0][h])
+								print ('########### return data ############')
+								out_data.put(returndata[0][h]) #send data to clientserver
+										
+							returndata.clear()
 						
-						returndata = thread_run.work(array[x]['gir']) #iss data komplete
 				
-				del array	
-			else:
-				returndata = thread_run.work('')
-			
-			if returndata != '':
+				
+				del array # Delete data. last entry from if z != 1:
+				
+			if no_direkt_data == 1: #is aktive when not data submited
+				print ('############### no data #############')				
+				returndata = thread_run.work('',gir,Thread_ram)
+				Thread_ram = returndata[1]
+				if returndata[0] != '':
+	
+					for h in returndata[0]:
+						out_data.put(returndata[0][h]) #send data to clientserver
+								
+					returndata.clear()
 
-				for h in returndata:
-					print (returndata[h])
-					out_data.put(returndata[h]) #send data to clientserver
-							
-				returndata.clear()
-			
 
-			
-			time.sleep(0.5)
-			
-	
-	
-	
+			time.sleep(0.5)  #### should be triggert by thread him self .... must be correctet later
+
 	def time (self,data):
 		if data == 'get':
 			
