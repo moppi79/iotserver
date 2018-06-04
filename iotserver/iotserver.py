@@ -29,7 +29,7 @@ variable = {}
 global sensor_ram 
 sensor_ram = defaultdict(object)
 sensor_ram = {}
-
+'''
 #data from client_Server to webclient
 global iot_ram
 iot_ram = defaultdict(object)
@@ -39,16 +39,68 @@ iot_ram = {}
 global iot_cache
 iot_cache = defaultdict(object)
 iot_cache = {}
+'''
 
 #auth token, web and server_client
 global iot_token
 iot_token = defaultdict(object)
 iot_token = {}
 
-#iot Config from server_client
-global iot_config 
-iot_config = defaultdict(object)
-iot_config = {}
+global iss_stack
+iss_stack = defaultdict(object)
+iss_stack = {}
+iss_stack['time'] = {} #value for delete timer ['time'][token] = time-hash
+
+global iss_install
+iss_install = defaultdict(object)
+iss_install = {}
+
+global gir
+gir = defaultdict(object)
+gir = {}
+
+################
+# dummy server #
+################
+
+iot_token['testserver1'] = {}
+
+iot_token['testserver1']['host'] = 'zero'
+iot_token['testserver1']['zone'] = 'darkzone'
+iot_token['testserver1']['typ'] = 'server'
+iot_token['testserver1']['time'] = ''
+
+iss_install['testbaustein'] = {}
+
+iss_install['testbaustein']['sender'] = {}
+iss_install['testbaustein']['update'] = {}
+
+iss_install['testbaustein']['update']['new'] = 1
+
+iss_install['testbaustein']['data'] = {}
+iss_install['testbaustein']['data']['id'] = 'xx'
+iss_install['testbaustein']['data']['value'] = '1'
+iss_install['testbaustein']['data']['new'] = 1
+
+
+iss_install['testbaustein']['sender']['host'] = 'zero'
+iss_install['testbaustein']['sender']['zone'] = 'darkzone'
+iss_install['testbaustein']['sender']['name'] = 'testic'
+iss_install['testbaustein']['sender']['system'] = 'i2c'
+
+variable['zero'] = {}
+variable['zero']['darkzone'] = {}
+ 
+variable['zero']['darkzone']['stop'] = '0'
+variable['zero']['darkzone']['kill'] = '0'
+variable['zero']['darkzone']['sensor'] = '0'
+
+variable['zero']['darkzone']['update'] = '0'
+variable['zero']['darkzone']['webupdate'] = '0'
+
+###############
+
+
 
 '''
 inhalt variable {
@@ -78,8 +130,8 @@ class iot():
 					'update':'update',
 					'push':'push',
 					'new_slot':'new_slot',
-					'server_client_get':'server_client_get',
-					'server_client_set':'server_client_set',
+					'iss':'iss',
+					'Clean_iss_stack':'Clean_iss_stack',
 					'web_new':'web_new',
 					'web_exist':'web_exist',
 					'web_array':'web_array',
@@ -87,30 +139,24 @@ class iot():
 					'web_set':'web_set'
 					}
 		checker = 0
-		for funk in funklist:
-			
 			#Old web clients delete
-			for x in iot_token:
+		for x in iot_token:
+			if iot_token[x]['typ'] == 'webclient':
 
-				if iot_token[x]['typ'] == 'webclient':
+				if self.time(iot_token[x]['time']) > 300:
+					
+					del iot_token[x]
+					logging.error(json.dumps('token gelöscht'))
+					
 
-					if self.time(iot_token[x]['time']) > 300:
-						
-						del iot_token[x]
-						logging.error(json.dumps('token gelöscht'))
-						
-
-			#do function		
-			if data['iotfunk'] == funk:
-				
-				
-	
-				ausgabe = getattr(self,funklist[data['iotfunk']])(data)
-				checker = 1
+			#do functio
+		print (data['iotfunk'])
+		if data['iotfunk'] in funklist:
 			
-			if checker == 0:
-				logging.error('fehlerhafter befehl vom HTML client')
-				ausgabe = 'error in data '
+			ausgabe = getattr(self,funklist[data['iotfunk']])(data)
+		else:
+			logging.error('fehlerhafter befehl vom HTML client')
+			ausgabe = 'error in data '
 			
 		return (ausgabe)
 
@@ -133,25 +179,88 @@ class iot():
 			return (nowstamp - laststamp)
 			
 	
-	def new_slot(self,data):#returns a new token for web client/ client_server, reserves a new space on ram.
-	#erstellt einen token, in dem bereich wo es her kommt. und wo es hin geht. 
+	def new_slot(self,data):#returns a new token for web client/ client_server, reserves a new space on ram. need ['count'] 
 		
-		token = sensor.new('',10)
-
-
-	def server_client_get (self,data): #returns new data from web client 
+		count = int(data['count'])
+		loop = 1
+		ret = {}
+		while loop <= count:
+			token = sensor.new('',20)
+			iss_stack[token] = {}
+			iss_stack['time'][token] = self.time('get') 
+			ret[loop] = token
+			loop = loop + 1
 		
-		print('mumu')
+		return(ret)
 		
-	
-	def server_client_set(self,data): #sets data from server_client in ram with notification to web_clients
-		
-		print('mumu')
+	def Clean_iss_stack(self,data): #delete old key´s and data
+		looper = iss_stack['time'].copy()
+		#logging.error('ausführunfg')
+		for x in looper:
+			#logging.error('delete key: {} date: {}'.format(x,self.time(iss_stack['time'][x])))
 			
-	
+			if self.time(iss_stack['time'][x]) > 10:
+				del iss_stack['time'][x]
+				del iss_stack[x]
+				logging.error('delete key:{}'.format(x))
+			
+	def iss (self,data): #need data['messages']['token'](token was comes from new_slot) and data['token'] (server/webclient token) returns new massages
+		logging.error('iss install')
+		shadow = data['messages'].copy()
+		logging.error(json.dumps(data))
+		logging.error(json.dumps(iss_stack))
+		for x in shadow: #all submitet ISS-Messages from Client (to store in iss_stack)
+			logging.error('x:{}'.format(x))
+			for y in iot_token: #client list 
+				logging.error('y:{}'.format(y))
+				
+				if 'target' in data['messages']: #when data is targeted a single client
+					logging.error('target')
+					if iot_token[y]['host'] == data['messages'][x]['host'] and iot_token[y]['zone'] == data['messages'][x]['zone']:
+						iss_stack[x][y] = {}
+						iss_stack[x][y] = data['messages'][x]
+				else: #to all clients
+					logging.error('else')
+					if data['messages'][x]['update']['new'] == 1: #when iss messages installes a new service
+						logging.error('update new data')
+						iss_stack[x][y] = {}
+						iss_stack[x][y] = data['messages'][x]
+						iss_install[x] = {}
+						iss_install[x] = data['messages'][x]
+					else: ## standart ISS Update message
+						logging.error('update')
+						iss_stack[x][y] = {}
+						iss_stack[x][y] = data['messages'][x]
+						iss_shadow = iss_install.copy()
+						for z in iss_shadow: #return new 
+							if iss_shadow[z]['host'] == data['messages'][x]['host'] and iss_shadow[z]['zone'] == data['messages'][x]['zone'] and iss_shadow[z]['name'] == data['messages'][x]['name'] and iss_shadow[z]['data']['id'] == data['messages'][x]['data']['id']:
+								iss_shadow[z]['data']['value'] = data['messages'][x]['data']['value']
+			logging.error(json.dumps(iss_stack))
+			del iss_stack[x][data['token']]
+		
+		'''
+			ich muss beide noch einfügen damit dann der server dann geziehlt daten abruft. nicht 20 mal die sekunde 
+			variable['zero']['darkzone']['update'] = '0'
+			variable['zero']['darkzone']['webupdate'] = '0'
+		
+		'''
+		
+		logging.error('done while')
+		ret = {}
+		iss_shadow = iss_stack.copy()
+		for x in iss_shadow: #return all data to client, and delete
+			if data['token'] in iss_stack[x]:
+				ret[x] = {}
+				ret[x] = iss_stack[x][data['token']]
+				del iss_stack[x][data['token']]
+		
+		logging.error('iss ende')
+		return (ret)
+
+
 	def web_exist (self,data): # Looks web id is Exist
 		ret = {}
-		ret['return'] = iot_token.get(data['session_id'], 'not exist')
+		ret['return'] = iot_token.get(data['token'], 'not exist')
 		
 		if ret['return'] != 'not exist':
 			ret['return'] = 'ok'
@@ -160,7 +269,7 @@ class iot():
 		
 		
 	def web_new (self,data): # sets new web_clients (usable for Client-server Plugins)
-		
+		logging.error('webnew')
 		token = sensor.new('',20)
 		iot_token[token] = {}
 		iot_token[token]['host'] = token
@@ -175,7 +284,9 @@ class iot():
 		return(ret)
 
 	def web_array (self,data): #push the entire iot_config 
-		ret = {}
+		logging.error('webarray')
+		#ret = {}
+		'''
 		for x in iot_token: #abfrage aller daten
 			
 			if iot_token[x]['typ'] == "server": #den inhalt von server daten abrufen
@@ -184,21 +295,14 @@ class iot():
 				
 				ret[iot_token[x]['host']][iot_token[x]['zone']] = iot_config[iot_token[x]['host']][iot_token[x]['zone']]
 		
+		'''
+		ret = 'test'
+		
 		
 		logging.error(json.dumps('iot_token'))
 		logging.error(json.dumps(iot_token))
-		logging.error(json.dumps('iot_config'))
-		logging.error(json.dumps(iot_config))
 		return (ret)
-		
-		
-	def web_get (self,data): #says the changes on client_server iot
-		
-		return (data)
-		
-	def web_set (self,data): #set data to client_server
-		
-		return (data)
+
 	
 
 	
@@ -354,7 +458,7 @@ class check():#standart abfrage von server-Clients
 		#logging.error(json.dumps(timeschlitz))
 		#logging.error(json.dumps(variable))
 		logging.error(json.dumps(iot_token))
-		logging.error(json.dumps(iot_config))
+		#logging.error(json.dumps(iot_config))
 		
 		if variable[host][name]['switch'] == 1: #wenn Client mit einem Multiplexer ausgestatet ist 
 			#logging.error('timeslot delete')
@@ -369,7 +473,7 @@ class check():#standart abfrage von server-Clients
 		
 		del iot_token[ram[host][name]['sesession_id']]
 		#logging.error('2')
-		del iot_config[host][name] 
+		#del iot_config[host][name] 
 		#logging.error('3')
 		
 		#logging.debug(json.dumps(ram))
@@ -420,18 +524,19 @@ class server(): # server standart Classe
 				iot_token[sesession_id]['typ'] = 'server'
 				iot_token[sesession_id]['time'] = iot.time('','get')
 				#ablegen der IoT konfig data 
-				iot_config[umwandel['host']] = {}
-				iot_config[umwandel['host']][umwandel['zone']]  = {}
-				iot_config[umwandel['host']][umwandel['zone']] = umwandel['iot']
+				#iot_config[umwandel['host']] = {}
+				#iot_config[umwandel['host']][umwandel['zone']]  = {}
+				#iot_config[umwandel['host']][umwandel['zone']] = umwandel['iot']
 				
 				logging.error(json.dumps('iot_token'))
 				logging.error(json.dumps(iot_token))
-				logging.error(json.dumps('iot_config'))
-				logging.error(json.dumps(iot_config))
+				#logging.error(json.dumps('iot_config'))
+				#logging.error(json.dumps(iot_config))
 				
 				
 				addnew.new_client(umwandel['zone'], umwandel['host']) #erzeuge Timeslice 
 				#addnew.timeslicer()
+				logging.error('install komplete')
 				logging.error(json.dumps(ret))
 				return (ret)
 				
@@ -440,6 +545,23 @@ class server(): # server standart Classe
 			v1 = iot()
 			return v1.all_in(umwandel)
 			
+		elif umwandel['funktion'] == 'all_data_print': ## Print all Varibles in Error log
+			logging.error('ram')
+			logging.error(json.dumps(ram))
+			logging.error('timeschlitz')
+			logging.error(json.dumps(timeschlitz))
+			logging.error('variable')
+			logging.error(json.dumps(variable))
+			logging.error('sensor_ram')
+			logging.error(json.dumps(sensor_ram))
+			logging.error('iot_token')
+			logging.error(json.dumps(iot_token))
+			logging.error('iss_stack')
+			logging.error(json.dumps(iss_stack))
+			logging.error('iss_install')
+			logging.error(json.dumps(iss_install))
+			logging.error('gir')
+			logging.error(json.dumps(gir))
 			
 		elif umwandel['funktion'] == 'check': #die standart abrfragen, ob es änderungen giebt 
 			logging.debug('check aufruf')
@@ -575,7 +697,7 @@ class timer_san():
 		else:
 			variable[host][name]['switch'] = 0
 		#logging.error(str(ram[host][name]['num']))
-		
+		'''
 		for y in ram[host][name]['iot']:
 			#logging.error('Fehler bei install daten in Master Server-'+str(ram[host][name][str(y)]['num']+1))
 			variable[host][name][y] = {}
@@ -585,6 +707,7 @@ class timer_san():
 				variable[host][name][y][x] = {}
 				variable[host][name][y][x] = ram[host][name]['iot'][y][x]
 				variable[host][name][y][x]['update'] = 0
+		'''
 				
 		 ##kann nachher gelöscht werden
 		#logging.error(json.dumps(variable))
@@ -605,16 +728,28 @@ class data_server(): #Server Thread
 				
 			sleepi = True
 			while sleepi: ##Standby while
-				time.sleep(0.01)
+				time.sleep(0.02)
+				
+				if Server_cron_queue.empty() != True:#cron data
+					sleepi = False
+				
 				if TCP2Server_queue_stack['aktive'].empty() != True:
 					sleepi = False
-
+			
+				
 			io = datahelper()
 			in_data = io.transmit('',0)## check on new data
 			ret = ''
+			
+			
 			#logging.error('test')
 			in_data_copy = in_data.copy()
 			server_io = server()
+			if Server_cron_queue.empty() != True:#cron data
+				crondata = Server_cron_queue.get()
+				server_io.new_data(json.loads(crondata)) #no return data
+					
+				
 			for x in in_data_copy: #JSON catch
 				try:
 					umwandel = json.loads(in_data_copy[x])
@@ -637,11 +772,12 @@ class data_server(): #Server Thread
 						ret[x] = json.dumps(server_io.new_data(umwandel)) ###Doing server call
 						logging.debug('thread: {}, data: {}'.format(x,json.dumps(in_data[x])))
 					except ValueError as err:
-						logging.error('Fehlerhafte JSON data')
+						logging.error('Fehlerhafte JSON data ')
 						logging.error(err)
 						ret[x] = {'error':'Error data'}
 					except KeyError as err:
 						logging.error('Fehlerhafte JSON data')
+						logging.error(err)
 						logging.error('thread: {}, data: {}'.format(x,json.dumps(in_data[x])))
 						ret[x] = {'error':'Error data'}
 				
@@ -664,7 +800,7 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler): #In comeing TC
 		anwser = 0 
 		exit = 0 
 		loop_control = True
-
+		logging.error('data neu')
         ###########to become a free Data Slot #################
 		while loop_control: 
 			if TCP2Server_queue_stack['aktive'].empty() == True:
@@ -686,16 +822,19 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler): #In comeing TC
 			if exit == 1:
 				loop_control = False
 				break
-        
+		
+		logging.error('hab token')
         ######### Put data in the slot ##############
 		count = self.request.recv(10).strip() #### handle dynamic byte count
 		lenght = int(count.decode('utf8'))
 		self.request.sendall('ok'.encode('utf8'))
-		
+		logging.error(lenght)
+		logging.error('habe daten')
 		
 		data = self.request.recv(lenght).strip() #### handle data
 		rawdata = data.decode('utf8')
-
+		logging.error(rawdata)
+		
 		TCP2Server_queue_stack[own_slot]['data'].put(rawdata)
 		TCP2Server_queue_stack[own_slot]['ready'].put(own_slot)
         
@@ -710,9 +849,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler): #In comeing TC
 			time.sleep(0.2)
 			loop = loop + 1
 			print (loop)
+			logging.error(loop)
 			if loop > 20: #when server takes over 2 seconds to progess the data. force to close
 				dataout='Server error'
-
 				logging.error('TCP servre error, thread: {}'.format(cur_thread.name))
 				trigger = False
 				if TCP2Server_queue_stack[own_slot]['ready'].empty() != True:
@@ -724,13 +863,18 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler): #In comeing TC
         		
 				garbage = TCP2Server_queue_stack[own_slot]['lock'].get()
 		
+		
+		logging.error('sende daten')
 		#return data to client
 		TCP2Server_queue_stack[own_slot]['ready'].put(own_slot)
 		length = len(dataout)
-		self.request.sendall(bytes(str(length), 'utf8'))
+		string = str(length)
+		logging.error(string.zfill(30))
+		self.request.sendall(bytes(string.zfill(30), 'utf8'))
 		response = str(self.request.recv(10), 'utf8')
 		
 		self.request.sendall(dataout.encode('utf8'))
+		logging.error('close')
 		self.close()
 		#self.request.finish()
 		
@@ -802,8 +946,7 @@ class data_handle_TCP2Server (): ##### TCP Multiplex Service (threaded)
 		stage_one_helper = 0	
 		loop_count = 0
 		sleep_loop_delay = 0
-		while True: #### main while 
-			
+		while True: #### main while
 			sleepi = True
 			while sleepi: ### Sleep loop when non aktive TCP connection
 				time.sleep(0.01)
@@ -890,6 +1033,19 @@ class data_handle_TCP2Server (): ##### TCP Multiplex Service (threaded)
 			time.sleep(0.09)
 			
 
+def ms_time(select): #return 0 ms 1 Second 2 array with both
+	now = datetime.datetime.now()
+	if select == 0:
+		return (now.microsecond)
+	elif select == 1:
+		return (now.second)
+	elif select == 2:
+		return (now.minute)
+	elif select == 3:
+		return (now.hour)
+	else:
+		return ({0:now.microsecond,1:now.second})
+
 
 def Demon_start(): #### main Thread
 	logging.error(json.dumps('Server Start'))
@@ -901,10 +1057,12 @@ def Demon_start(): #### main Thread
 		global TCP2Server_queue_stack
 		global Io_stack
 		global demon_queue_data
+		global Server_cron_queue
 		
 		demon_queue_data = {}
 		demon_queue_data['close'] = Queue()
 		
+		Server_cron_queue = Queue()
 		
 		TCP2Server_queue_stack = {}
 		TCP2Server_queue_stack['max_client'] = clients_max
@@ -933,7 +1091,6 @@ def Demon_start(): #### main Thread
 		Io_stack[2]['data_to_client'] = Queue()
 		Io_stack[2]['data_to_server'] = Queue()
 		Io_stack[2]['lock'] = Queue()
-		
 		#############
 		
 		data_server_prozess = Process(target=data_server.io) #start server thread
@@ -952,8 +1109,12 @@ def Demon_start(): #### main Thread
 		
 		############  Debugger run #########
 		stopper = 0
-		while True: #basic run
+		logging.error('ms_time ')
+		now_minute = ms_time(2) #set demon timer 
+		logging.error('ms_time {}'.format(now_minute))
 		
+		while True: #basic run
+			
 			if data_server_prozess.is_alive() != True:
 				logging.error(json.dumps('server Thread non aktive'))
 				stopper = 1
@@ -976,13 +1137,18 @@ def Demon_start(): #### main Thread
 			if testcount == 10:
 				stopper = 1
 			'''#### debug mode 
-
+			if now_minute != ms_time(2): #demon run 
+				now_minute = ms_time(2)
+				logging.error('cron start')
+				Server_cron_queue.put(json.dumps({'funktion':'iot','iotfunk':'Clean_iss_stack'}))
+			
 			if stopper == 1:
 				break
 		############  Debugger run #########		
 		
 		if stopper == 1: #### server shutdown
-			
+			Server_cron_queue.put(json.dumps({'funktion':'all_data_print'}))
+			time.sleep(0.3)
 			loop_count = 0
 			
 			if data_server_prozess.is_alive() == True:
@@ -995,19 +1161,20 @@ def Demon_start(): #### main Thread
 
 			while loop_count < TCP2Server_queue_stack['max_client']:
 				loop_count = loop_count + 1
-				TCP2Server_queue_stack[loop_count]['lock'].close
-				TCP2Server_queue_stack[loop_count]['ready'].close
-				TCP2Server_queue_stack[loop_count]['ready_return'].close
-				TCP2Server_queue_stack[loop_count]['data'].close
+				TCP2Server_queue_stack[loop_count]['lock'].close()
+				TCP2Server_queue_stack[loop_count]['ready'].close()
+				TCP2Server_queue_stack[loop_count]['ready_return'].close()
+				TCP2Server_queue_stack[loop_count]['data'].close()
 			
-			Io_stack[1]['data_to_server'].close
-			Io_stack[2]['data_to_client'].close
-			Io_stack[1]['data_to_server'].close
-			Io_stack[2]['data_to_client'].close
-			Io_stack[1]['lock'].close
-			Io_stack[2]['lock'].close
+			Io_stack[1]['data_to_server'].close()
+			Io_stack[2]['data_to_client'].close()
+			Io_stack[1]['data_to_server'].close()
+			Io_stack[2]['data_to_client'].close()
+			Io_stack[1]['lock'].close()
+			Io_stack[2]['lock'].close()
 			
-			demon_queue_data['close'].close
+			Server_cron_queue.close()
+			demon_queue_data['close'].close()
 			logging.error(json.dumps('Server Shutdown'))
 			break
 

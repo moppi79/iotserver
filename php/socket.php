@@ -105,10 +105,20 @@ class iot{
 
 		$transfer =  json_encode($this->vars[function_list]);
 		
-		socket_send($socket,$transfer,1024 ,MSG_DONTROUTE);
+		$count = strlen($transfer);
 
-		socket_recv($socket , $buf , 10204 , MSG_WAITALL );
-		#print($buf);
+		socket_send($socket,$count,strlen($count),MSG_DONTROUTE); #send length data to server
+
+		socket_recv($socket , $buf , 2 , MSG_WAITALL ); #become ack
+
+		socket_send($socket,$transfer,$count,MSG_DONTROUTE); #send data to server
+		
+		socket_recv($socket , $count , 30 , MSG_WAITALL ); #income char lentgh
+		
+		socket_send($socket,'ok',2,MSG_DONTROUTE); #send ack
+		
+		socket_recv($socket , $buf , $count , MSG_WAITALL ); #income new data
+
 		$returner = json_decode($buf,true);
 		socket_close($socket);
 		return($returner);

@@ -1,5 +1,5 @@
 import os, time, sys
-
+import RPi.GPIO as GPIO
 test = {}
 test['aa'] = 111
 

@@ -51,16 +51,14 @@ class basic2:
 		ret = {}
 		check_verzeichniss = gir_check()
 		if data_work != '':
-			
-			
-			
+
 			now = datetime.datetime.now()
 			ttt = now.second
 			if 'time' in self.ram:
 				
 				if ttt != self.ram['time']:
 					self.ram['time'] = ttt
-					print (self.ram)
+					#print (self.ram)
 					logger.error('new time {}'.format(ttt))
 					#if self.ram['gir']['']
 				
@@ -90,15 +88,18 @@ class basic2:
 			array[1]['target']['system'] = 'i2c'
 			array[1]['data']['id'] = '1'
 			ownram[1] = 1111
+			#print ('in thread data')
+			#print (gir)
+			#print ('in thread data')
 			if check_verzeichniss.check(gir,['raspi2','balkon','i2c','demoic','1']) == True:
-				print ('###########---################')
-				print (gir['raspi2']['balkon']['i2c']['demoic']['1']['value'])
+				#print ('###########---################')
+				#print (gir['raspi2']['balkon']['i2c']['demoic']['1']['value'])
 				if gir['raspi2']['balkon']['i2c']['demoic']['1']['value'] == '1':
 					array[1]['data']['value'] = 0
-					print ('########### HIER DIE 0 ###############')
+					#print ('########### HIER DIE 0 ###############')
 				else:
 					array[1]['data']['value'] = 1
-					print ('########### HIER DIE 1 ###############')
+					#print ('########### HIER DIE 1 ###############')
 
 		return ([array,ownram])
 		

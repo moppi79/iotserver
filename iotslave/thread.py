@@ -116,9 +116,13 @@ class thread_class:
 					#logger.error('for schleife')
 					#logger.error(json.dumps(array[x]))
 					if 'gir' in array[x]:
-
+						#print ('new data in')
+						#print (array[x])
+						#print ('new data in')
 						copx.copy(array[x]['gir'],'gir')
-
+						#print ('innter GiR')
+						#print (gir)
+						#print ('innter GiR')
 					else:
 						print ('############### with data #############')
 						no_direkt_data = 0
@@ -128,9 +132,9 @@ class thread_class:
 						if returndata[0] != '':
 			
 							for h in returndata[0]:
-								print ('########### return data ############')
-								print (returndata[0][h])
-								print ('########### return data ############')
+								#print ('########### return data ############')
+								#print (returndata[0][h])
+								#print ('########### return data ############')
 								out_data.put(returndata[0][h]) #send data to clientserver
 										
 							returndata.clear()
@@ -139,9 +143,13 @@ class thread_class:
 				
 				del array # Delete data. last entry from if z != 1:
 				
-			if no_direkt_data == 1: #is aktive when not data submited
-				print ('############### no data #############')				
+			if no_direkt_data == 1 and gir != {}: #is aktive when not data submited
+				#print ('############### no data #############'+self.ram['config']['name'])
+				#print (gir)
+				#print (Thread_ram)
+				#print ('############### no data #############')
 				returndata = thread_run.work('',gir,Thread_ram)
+				#print (returndata)
 				Thread_ram = returndata[1]
 				if returndata[0] != '':
 	
