@@ -229,12 +229,23 @@ class iot():
 						iss_install[x] = data['messages'][x]
 					else: ## standart ISS Update message
 						logging.error('update')
+						#logging.error(json.dumps(data))
+						#logging.error(json.dumps(iss_install))
 						iss_stack[x][y] = {}
 						iss_stack[x][y] = data['messages'][x]
+						
+						logging.error(json.dumps(iss_stack))
 						iss_shadow = iss_install.copy()
-						for z in iss_shadow: #return new 
-							if iss_shadow[z]['host'] == data['messages'][x]['host'] and iss_shadow[z]['zone'] == data['messages'][x]['zone'] and iss_shadow[z]['name'] == data['messages'][x]['name'] and iss_shadow[z]['data']['id'] == data['messages'][x]['data']['id']:
-								iss_shadow[z]['data']['value'] = data['messages'][x]['data']['value']
+						for z in iss_shadow: #data override in install massesages with actual data
+							#logging.error('z:{}'.format(z))
+							#logging.error('y:{}'.format(y))
+							#logging.error('x:{}'.format(x))
+							#logging.error(json.dumps(data['messages'][x]))
+							#logging.error(json.dumps(iss_shadow[z]))
+							if iss_shadow[z]['sender']['host'] == data['messages'][x]['sender']['host'] and iss_shadow[z]['sender']['zone'] == data['messages'][x]['sender']['zone'] and iss_shadow[z]['sender']['name'] == data['messages'][x]['sender']['name'] and iss_shadow[z]['data']['id'] == data['messages'][x]['data']['id']:
+								logging.error(json.dumps('vorhandxen'))
+								iss_install[z]['data']['value'] = data['messages'][x]['data']['value']
+
 			logging.error(json.dumps(iss_stack))
 			del iss_stack[x][data['token']]
 		
@@ -254,6 +265,7 @@ class iot():
 				ret[x] = iss_stack[x][data['token']]
 				del iss_stack[x][data['token']]
 		
+		logging.error(json.dumps(ret))
 		logging.error('iss ende')
 		return (ret)
 
@@ -454,7 +466,7 @@ class check():#standart abfrage von server-Clients
 		
 	def delete(self, name, host): #client aus speicher entfernen
 		logging.error(name)
-		logging.error('delte')
+		logging.error('check::delete')
 		#logging.error(json.dumps(timeschlitz))
 		#logging.error(json.dumps(variable))
 		logging.error(json.dumps(iot_token))
@@ -482,9 +494,18 @@ class check():#standart abfrage von server-Clients
 		#logging.error(json.dumps(timeschlitz))
 		#logging.error(json.dumps(variable))
 		#logging.error(json.dumps(ram))
-			
+		shadow_copy = iss_install.copy()
+		
+		for x in shadow_copy: #delete install data
+			if shadow_copy[x]['sender']['host'] == host:
+				logging.error(json.dumps(shadow_copy[x]))
+				del iss_install[x]
+		logging.error(host)
+		logging.error(json.dumps(shadow_copy))	
 		returner = {'shutdown':'ok'}
+		logging.error('aaa')
 		logging.error(returner)
+		logging.error('bbbb')
 		return (returner)
 
 class server(): # server standart Classe
@@ -536,6 +557,17 @@ class server(): # server standart Classe
 				
 				addnew.new_client(umwandel['zone'], umwandel['host']) #erzeuge Timeslice 
 				#addnew.timeslicer()
+				
+				###Copy iss_install into iss stack
+				################## HIER WEITER MACZHEN !!!!!!! ###########################
+				shadow_copy = iss_install.copy()
+				for x in shadow_copy:
+					iss_stack[x] = {}
+					iss_stack[x][sesession_id] = {}
+					iss_stack[x][sesession_id] = iss_install[x]
+
+				################## HIER WEITER MACZHEN !!!!!!! ###########################
+				logging.error(json.dumps(iss_stack))
 				logging.error('install komplete')
 				logging.error(json.dumps(ret))
 				return (ret)

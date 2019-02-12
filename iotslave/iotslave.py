@@ -255,7 +255,7 @@ class i2c_abruf:
 		switch.close()
 
 class iot:
-
+	
 	def __init__(self): 
 		print ('init')
 		'''
@@ -291,7 +291,8 @@ class iot:
 			
 
 	def update(self):
-		sortiert = self.sorting_iss()
+		global iss
+		sortiert = self.sorting_iss()#lese daten aus dem ISS
 		
 		server =  server_coneckt()
 		logging.error('update')
@@ -303,6 +304,7 @@ class iot:
 			hashes = server.sock2({'funktion':'iot','iotfunk':'new_slot','count':loop})
 			update_copy = iss.copy()
 			count = 1
+			submit_data = {}
 			for x in sortiert:
 				
 				submit_data[hashes[str(count)]] = sortiert[x] 
@@ -310,7 +312,10 @@ class iot:
 				count = count + 1 
 			
 			
-			server.sock2({'funktion':'iot','iotfunk':'iss','messages':send_install_data,'token':ram['sesession_id']})
+			
+			iss = server.sock2({'funktion':'iot','iotfunk':'iss','messages':submit_data,'token':ram['sesession_id']})
+			
+			logging.error(json.dumps(iss))
 			
 			update_copy = iss.copy()
 			for x in update_copy:
@@ -756,7 +761,7 @@ def main_loop():
 	loopcounter = 1
 	ram['Massage_counter'] = 0
 	run = 0
-	
+	wait = 0
 	abfragen_sec = 10
 	
 	now = datetime.datetime.now()
@@ -912,14 +917,14 @@ def main_loop():
 		################### Servercall ###################
 		ministart = ms_time(0)
 		if loop_server_call == 0 and ms_time(0) < 500000:
-			#logger.error('checker halb')
+			logger.error('checker halb')
 			loop_server_call = 1
 			socket_call.check()
 			#print (ms_time(0) - ministart )
 			
 			
 		if loop_server_call == 1 and ms_time(0) > 500000:
-			#logger.error('checker voll')
+			logger.error('checker voll')
 			loop_server_call = 0
 			socket_call.check()
 			#print (ms_time(0) - ministart )
