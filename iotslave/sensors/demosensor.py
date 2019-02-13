@@ -1,6 +1,6 @@
-import daemon, os, time, sys, signal, lockfile, daemon.pidfile, socket, logging, datetime, json, random
+import daemon, os, time, sys, signal, lockfile, socket, logging, datetime, json, random
 
-class demo_sensor():
+class demosensor():
 	
 	def out(self,adresse,speicher):
 		

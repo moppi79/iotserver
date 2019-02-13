@@ -1,16 +1,19 @@
-import daemon, os, time, sys, signal, lockfile, daemon.pidfile, socket, socketserver, json, logging, random,datetime, threading
+import daemon, os, time, sys, signal, lockfile, socket, socketserver, json, logging, random,datetime, threading, configparser
 from collections import defaultdict
 from multiprocessing import Process, Queue
 
-HOST, PORT = "localhost", 5050 ##adresse und port vom server-server
+config = configparser.ConfigParser()
+config.read('../config.py')
 
-clients_max = 2
+HOST, PORT = config['SERVER']['Adress'], int(config['SERVER']['Port']) ##adresse und port vom server-server
+
+clients_max = int(config['SERVER']['clients_max']) 
 
 global logger
 logger = logging.getLogger()
 logger.setLevel(logging.ERROR)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-fh = logging.FileHandler("/net/html/iotserver/server.log")
+fh = logging.FileHandler(config['GLOBAL']['workingpath']+'/'+config['SERVER']['logname'])
 fh.setFormatter(formatter)
 logger.addHandler(fh)
 
@@ -1214,7 +1217,6 @@ def Demon_start(): #### main Thread
 context = daemon.DaemonContext( #daemon konfig
 	working_directory='/net/html/iotserver/iotserver',
    	umask=0o002,
-   	pidfile=daemon.pidfile.PIDLockFile('/net/html/iotserver/iotserver/testpid'),
    	files_preserve = [
    		fh.stream,
     ],

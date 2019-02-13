@@ -1,17 +1,31 @@
 # coding=utf8
-import daemon, os, time, sys, signal, lockfile, daemon.pidfile, socket, logging, datetime, json, random
+import daemon, os, time, sys, signal, lockfile, socket, logging, datetime, json, random, configparser, fileinput
 
 from multiprocessing import Process, Queue
 from collections import defaultdict
 from module.i2c_driver import i2c_treiber
 #from i2ccall import i2c_abruf
-
+'''
 from sensors.demosensor import demo_sensor
 from sensors.bh1750 import bh1750
 from sensors.htu21d import htu21d
 from module.mcp23017 import mcp23017
 from module.pcf8574 import pcf8574
 from module.demoic import demoic
+'''
+config = configparser.ConfigParser()
+config.read('../config.py')
+
+ic_class = {}
+
+for x in config['module']:
+	if config['module'][x] == "1":
+		exec('from module.'+x+' import '+x+'') 
+		exec("ic_class['"+x+"'] = "+x+"()")
+
+for x in config['sensors']:
+	if config['sensors'][x] == "1":
+		exec('from sensors.'+x+' import '+x+'') 
 
 #from plugin.basic import basic
 
@@ -23,16 +37,16 @@ from thread import thread_class
 
 
 
-HOST, PORT = "localhost", 5050 ##adresse und port vom server-server
 
-pidfilename = 'clientpid'
-workingpath = '/net/html/iotserver'
+HOST, PORT = config['SERVER']['Adress'], int(config['SERVER']['Port']) ##adresse und port vom server-server
+
+workingpath = config['GLOBAL']['workingpath']
 
 
 logger = logging.getLogger()
 logger.setLevel(logging.ERROR)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-fh = logging.FileHandler(workingpath+"/client.log")
+fh = logging.FileHandler(config['GLOBAL']['workingpath']+'/'+config['Slave_Basic']['logname'])
 fh.setFormatter(formatter)
 logger.addHandler(fh)
 
@@ -41,77 +55,29 @@ master_pfad = '/net'
 master_pidfile = '/net/master' #pidfile verzeichniss/name
 
 
-'''
-Aktoren rechen nach pin
-pin		1		2		3		4		5		6		7		8
-dezimal	1		2		4		8		16		32		64		128
-hex		0x01 	0x02	0x04	0x08	0x10	0x20	0x40	0x80
 
-ic_list und ic_chip
-sind nur zum festlegen der START optionen
-im laufenden betrieb sind alle werte im ram Bindend vorallem wenn sich ein IC neu starten sollte
-werden alle daten aus dem ram gezogen 
+i2cswitch = {'adress':int(config['Slave_Basic']['switch_adress'],16),'port':int(config['Slave_Basic']['switch_port'])} #TI-PCA9548A
+#i2cswitch = {'adress':0x70,'port':int(config['Slave_Basic']['switch_port'])} #TI-PCA9548A
+ic_list = {'host':config['Slave_Basic']['Name'],'zone':config['Slave_Basic']['Zone'], 'switch':int(config['Slave_Basic']['switch'])} #anzahl I2C slaves mit adresse
 
-'''
-i2cswitch = {'adress':0x70,'port':1} #TI-PCA9548A
-ic_list = {'host':'raspi2','zone':'balkon', 'switch':1, 'sensor':1, 'num':1, 1:0x20} #anzahl I2C slaves mit adresse
-'''
-ic_list {
-'host':'name',# name vom gerät
-'zone':'balkon', #name des client-server
-'switch':1, ## ist ein switch angeschlossen TI-PCA9548A
-'sensor':1, (hat dieser server-Client sensor daten zum auslesen 1. oder nur aktoren 0)
-'num':1, # anzahl Ic´s 
-
-1:0x20 ## laufende nummer mit hex werten für IC´s 
-'''
+print(i2cswitch)
 
 ic_chip = defaultdict(object)
-'''
-ic_chip[1] ={'icname':'mcp23017',
-			'ic_class':'mcp23017',
-			'adresse':0x20,
-			'num':7,#anzahl ports
-			'bank':2,#anzahl banken
-			100:[0x00,0x00,0x12], #adresse der bank, start wert, export register MCP23017
-			101:[0x01,0xff,0x13], #adresse der bank, start wert, export register MCP23017 1 in 0 out
-			#1:[0x12,0x01,'aktor','beschreibung',1,[ziel bei schalter]], #register,startwert,typ,beschreibung,'fürwebseite Schaltbar' ("0"nein, "1"ja)optionaler wert für schalter
-			'pins':{
-			1:[0x12,0x01,'out','aktor','Aussen beleuchtung','1'],#IRLZ-relay. aussenbeläuchtung
-			2:[0x13,0x01,'in','on_off','Schalter draussen','0',[0x12,0x01]], #Schalter für aussenbleuchtung draussen
-			3:[0x12,0x02,'out','aktor','LED','0'],#LED signal lampe draussen
-			4:[0x13,0x02,'in','regen','Regensensor','0',[0x12,0x04]],#erkennung Regensensor
-			5:[0x12,0x04,'out','heizung','Heizung','0'],#IRLZ schalter - heizung für regensensor
-			6:[0x12,0x08,'out','Heartbeat','led','0'],#LED heartbeat
-			7:[0x12,0x40,'in','on_off','Schalter draussen','0',[0x12,0x01]],
-			}}
-
-
-
-
-ic_chip[2] ={'icname':'schreibtisch_display',
-			'ic_class':'pcf8574',
-			'display_name':'schreibisch_display',
-			'display_typ':'text', 
-			'adress':0x27,
-			'lines':4,
-			'symbol':20,
-			'lineadress':{1:0x80,
-						2:0xC0,
-						3:0x94,
-						4:0xD4}}
-						
-'''
-
-ic_chip[1] ={'icname':'demoic',
-			'ic_class':'demoic'}
-
 
 sensordic = defaultdict(object)		
 			
-sensordic = {1:[0x23,'options',bh1750(),'licht'],
-			2:[0x40,'options',htu21d(),'temperatur_feuchtigkeit']
-}
+
+linee = ''	
+with fileinput.input(files=('../config_ic.py')) as f:
+    for line in f:
+        linee = linee + line 
+        
+
+exec(linee)
+
+
+
+
 global ram			
 ram = defaultdict(object)
 ram = {}
@@ -122,8 +88,6 @@ iss = {} #IoT space system
 gir = {} #Global IoT RAM
 
 plugin_class = {'basic2','text_display'}
-ic_class = {'mcp23017':mcp23017(),'pcf8574':pcf8574(),'demoic':demoic()}
-
 
 iot_ram = defaultdict(object)
 iot_ram = {}
@@ -1079,7 +1043,6 @@ def main_loop():
 context = daemon.DaemonContext( #daemon konfig
 	working_directory= workingpath ,
    	umask=0o002,
-   	pidfile=daemon.pidfile.PIDLockFile(workingpath+'/'+pidfilename),
    	files_preserve = [
    		fh.stream,
     ],
@@ -1105,7 +1068,7 @@ if len(sys.argv) != 1:
 				
 				print('client stopped')
 				break 
-			
+		'''	
 		pidfile = open(workingpath+'/'+pidfilename, 'r') #pid File suchen
 		line = pidfile.readline().strip()#daten lesen
 		pidfile.close()
@@ -1113,7 +1076,7 @@ if len(sys.argv) != 1:
 		pid = int(line) #zur int umwandelkn
 		os.kill(pid, signal.SIGKILL) #PID kill
 		os.remove(workingpath+'/'+pidfilename) #alte PID löschen
-		print ('Client Closed')
+		print ('Client Closed')'''
 	elif 'restart' == sys.argv[1]:
 		print ("lala") ##noch nichts geplant
 	elif 'singledebug' == sys.argv[1]:
