@@ -247,7 +247,10 @@ class iot():
 							#logging.error(json.dumps(iss_shadow[z]))
 							if iss_shadow[z]['sender']['host'] == data['messages'][x]['sender']['host'] and iss_shadow[z]['sender']['zone'] == data['messages'][x]['sender']['zone'] and iss_shadow[z]['sender']['name'] == data['messages'][x]['sender']['name'] and iss_shadow[z]['data']['id'] == data['messages'][x]['data']['id']:
 								logging.error(json.dumps('vorhandxen'))
-								iss_install[z]['data']['value'] = data['messages'][x]['data']['value']
+								if data['messages'][x]['sender']['name'] == 'sensor':
+									iss_install[z]['data'] = data['messages'][x]['data']
+								else:
+									iss_install[z]['data']['value'] = data['messages'][x]['data']['value']
 
 			logging.error(json.dumps(iss_stack))
 			del iss_stack[x][data['token']]
