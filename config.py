@@ -1,6 +1,10 @@
 
 [GLOBAL]
+<<<<<<< HEAD
 workingpath = /net/html/iotserver/
+=======
+workingpath = /net/html/iotserver
+>>>>>>> refs/remotes/origin/master
 
 
 #################################################
@@ -51,9 +55,12 @@ switch_port = 1
 
 [sensors]
 
+<<<<<<< HEAD
 #time in Seconds
 update = 4
 
+=======
+>>>>>>> refs/remotes/origin/master
 demosensor = 1
 bh1750 = 1
 htu21d = 1

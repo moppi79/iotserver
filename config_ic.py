@@ -14,7 +14,10 @@ werden alle daten aus dem ram gezogen
 '''
 ic_chip[1] ={'icname':'mcp23017',
 			'ic_class':'mcp23017',
+<<<<<<< HEAD
 			'bus':'i2c',
+=======
+>>>>>>> refs/remotes/origin/master
 			'adresse':0x20,
 			'num':7,#anzahl ports
 			'bank':2,#anzahl banken
@@ -36,7 +39,10 @@ ic_chip[1] ={'icname':'mcp23017',
 
 ic_chip[2] ={'icname':'schreibtisch_display',
 			'ic_class':'pcf8574',
+<<<<<<< HEAD
 			'bus':'i2c',
+=======
+>>>>>>> refs/remotes/origin/master
 			'display_name':'schreibisch_display',
 			'display_typ':'text', 
 			'adress':0x27,
@@ -50,6 +56,7 @@ ic_chip[2] ={'icname':'schreibtisch_display',
 '''
 
 ic_chip[1] ={'icname':'demoic',
+<<<<<<< HEAD
 			'ic_class':'demoic',
 			'bus':'i2c',
 			'data':{'test':3}
@@ -111,3 +118,11 @@ sensor[2] = {'name':'Licht',
 sensordic = {1:[0x23,'options',bh1750(),'licht'],
 2:[0x40,'options',htu21d(),'temperatur_feuchtigkeit']
 }'''
+=======
+			'ic_class':'demoic'}
+			
+			
+sensordic = {1:[0x23,'options',bh1750(),'licht'],
+2:[0x40,'options',htu21d(),'temperatur_feuchtigkeit']
+}
+>>>>>>> refs/remotes/origin/master
