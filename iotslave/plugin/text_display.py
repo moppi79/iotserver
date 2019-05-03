@@ -21,7 +21,7 @@ class text_display:
 		
 		return (return_data);
 		
-	def work (self,data_work,gir,ownram):
-		print ('############################ RUN text_display ################################')
+	def work (self,data_work,gir,ownram,logger):
+		#print ('############################ RUN text_display ################################')
 		x = 1
 		return(['',ownram])

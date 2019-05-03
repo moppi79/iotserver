@@ -2,6 +2,8 @@ import daemon, os, time, sys, signal, lockfile, socket, socketserver, json, logg
 from collections import defaultdict
 from multiprocessing import Process, Queue
 
+from iss_helper import iss_create
+
 config = configparser.ConfigParser()
 config.read('../config.py')
 
@@ -21,15 +23,15 @@ global ram
 ram = defaultdict(object)
 ram = {}
 
-global timeschlitz
+global timeschlitz #veraltet
 timeschlitz = defaultdict(object)
 timeschlitz = {}
 
-global variable
+global variable #veraltet
 variable = defaultdict(object)
 variable = {}
 
-global sensor_ram 
+global sensor_ram #veraltet
 sensor_ram = defaultdict(object)
 sensor_ram = {}
 '''
@@ -45,22 +47,43 @@ iot_cache = {}
 '''
 
 #auth token, web and server_client
+'''
+iot_token
+20xn <-- Client token 
+[20xn][host]
+[20xn][zone]
+
+'''
+
 global iot_token
 iot_token = defaultdict(object)
 iot_token = {}
 
+'''
+iss_stack 
+iss_stack[Iss_token][client_token] = {iss}
+
+'''
 global iss_stack
 iss_stack = defaultdict(object)
 iss_stack = {}
 iss_stack['time'] = {} #value for delete timer ['time'][token] = time-hash
 
+'''
+iss_install
+iss_stack[client_token] = {iss [update]['new']=1}
+
+'''
+
 global iss_install
 iss_install = defaultdict(object)
 iss_install = {}
 
-global gir
+global gir #veraltet, ging in den Client über
 gir = defaultdict(object)
 gir = {}
+
+
 
 ################
 # dummy server #
@@ -124,7 +147,7 @@ name (server-client){
 
 '''
 
-class iot():
+class iot():#alle Iot abfragen werden abgehandelt. 
 
 	def all_in(self,data): #need key iotfunk --> funklist
 		logging.error('all-in')
@@ -133,6 +156,7 @@ class iot():
 					'update':'update',
 					'push':'push',
 					'new_slot':'new_slot',
+					'Kill_client':'Kill_client',
 					'iss':'iss',
 					'Clean_iss_stack':'Clean_iss_stack',
 					'web_new':'web_new',
@@ -143,7 +167,8 @@ class iot():
 					}
 		checker = 0
 			#Old web clients delete
-		for x in iot_token:
+		trash = iot_token.copy()
+		for x in trash:####!!!!das hier sollte später Demon !!!!!###### Web cliebnt Delete
 			if iot_token[x]['typ'] == 'webclient':
 
 				if self.time(iot_token[x]['time']) > 300:
@@ -153,24 +178,23 @@ class iot():
 					
 
 			#do functio
-		print (data['iotfunk'])
-		if data['iotfunk'] in funklist:
-			
+		#print (data['iotfunk'])
+		if data['iotfunk'] in funklist:#funktion ausführen
+			 
 			ausgabe = getattr(self,funklist[data['iotfunk']])(data)
+
 		else:
 			logging.error('fehlerhafter befehl vom HTML client')
 			ausgabe = 'error in data '
 			
-		return (ausgabe)
+		return (ausgabe)#gebe daten zurück an Server.iot()
 
-	def time (self,data):
-		if data == 'get':
-			
+	def time (self,data):#time stamp erzeugen für Token
+		if data == 'get':#sgibt zeit stempelt zurück
 			now = datetime.datetime.now()
-			
 			return (str(now.day)+':'+str(now.hour)+':'+str(now.minute)+':'+str(now.second))
 		
-		else:
+		else:#gibt vergangene zeit zückt wenn alter zeit stempel angeben ist 
 			now = datetime.datetime.now()
 			
 			d,h,m,s = data.split(':')
@@ -182,18 +206,25 @@ class iot():
 			return (nowstamp - laststamp)
 			
 	
+	def Kill_client(self,data):# erzeugt ein iss packet zum shutdown eines clients
+		#erwarte CLient,ERzeige massege zum kill
+		#via Message System
+		#cha.target('client','none','run','system') VAR KILL 
+		
+		logging.error('Sende Kill data')
+	
 	def new_slot(self,data):#returns a new token for web client/ client_server, reserves a new space on ram. need ['count'] 
 		
 		count = int(data['count'])
 		loop = 1
 		ret = {}
 		while loop <= count:
-			token = sensor.new('',20)
+			token = sensor.new('',20)#erzeugt zufalls code
 			iss_stack[token] = {}
 			iss_stack['time'][token] = self.time('get') 
 			ret[loop] = token
 			loop = loop + 1
-		
+
 		return(ret)
 		
 	def Clean_iss_stack(self,data): #delete old key´s and data
@@ -209,70 +240,96 @@ class iot():
 			
 	def iss (self,data): #need data['messages']['token'](token was comes from new_slot) and data['token'] (server/webclient token) returns new massages
 		logging.error('iss install')
-		shadow = data['messages'].copy()
 		logging.error(json.dumps(data))
-		logging.error(json.dumps(iss_stack))
-		for x in shadow: #all submitet ISS-Messages from Client (to store in iss_stack)
-			logging.error('x:{}'.format(x))
-			for y in iot_token: #client list 
-				logging.error('y:{}'.format(y))
-				
-				if 'target' in data['messages']: #when data is targeted a single client
-					logging.error('target')
-					if iot_token[y]['host'] == data['messages'][x]['host'] and iot_token[y]['zone'] == data['messages'][x]['zone']:
-						iss_stack[x][y] = {}
-						iss_stack[x][y] = data['messages'][x]
-				else: #to all clients
-					logging.error('else')
-					if data['messages'][x]['update']['new'] == 1: #when iss messages installes a new service
-						logging.error('update new data')
-						iss_stack[x][y] = {}
-						iss_stack[x][y] = data['messages'][x]
-						iss_install[x] = {}
-						iss_install[x] = data['messages'][x]
-					else: ## standart ISS Update message
-						logging.error('update')
-						#logging.error(json.dumps(data))
-						#logging.error(json.dumps(iss_install))
-						iss_stack[x][y] = {}
-						iss_stack[x][y] = data['messages'][x]
-						
-						logging.error(json.dumps(iss_stack))
-						iss_shadow = iss_install.copy()
-						for z in iss_shadow: #data override in install massesages with actual data
-							#logging.error('z:{}'.format(z))
-							#logging.error('y:{}'.format(y))
-							#logging.error('x:{}'.format(x))
-							#logging.error(json.dumps(data['messages'][x]))
-							#logging.error(json.dumps(iss_shadow[z]))
-							if iss_shadow[z]['sender']['host'] == data['messages'][x]['sender']['host'] and iss_shadow[z]['sender']['zone'] == data['messages'][x]['sender']['zone'] and iss_shadow[z]['sender']['name'] == data['messages'][x]['sender']['name'] and iss_shadow[z]['data']['id'] == data['messages'][x]['data']['id']:
-								logging.error(json.dumps('vorhandxen'))
-								if data['messages'][x]['sender']['name'] == 'sensor':
-									iss_install[z]['data'] = data['messages'][x]['data']
-								else:
-									iss_install[z]['data']['value'] = data['messages'][x]['data']['value']
-
+		if data['messages'] != '' and data['token'] in iot_token:
+			shadow = data['messages'].copy()
+			logging.error(json.dumps(data))
 			logging.error(json.dumps(iss_stack))
-			del iss_stack[x][data['token']]
-		
-		'''
-			ich muss beide noch einfügen damit dann der server dann geziehlt daten abruft. nicht 20 mal die sekunde 
-			variable['zero']['darkzone']['update'] = '0'
-			variable['zero']['darkzone']['webupdate'] = '0'
-		
-		'''
+			for x in shadow: #all submitet ISS-Messages from Client (to store in iss_stack)
+				logging.error('x:{}'.format(x))
+				for y in iot_token: #client list 
+					logging.error('y:{}'.format(y))
+					
+					if 'target' in data['messages'][x]: #when data is targeted a single client
+						logging.error('target')
+						if iot_token[y]['host'] == data['messages'][x]['target']['host'] and iot_token[y]['zone'] == data['messages'][x]['target']['zone']:
+							iss_stack[x][y] = {}
+							iss_stack[x][y] = data['messages'][x]
+							#logging.error('target data Set')
+							#logging.error(json.dumps(iss_stack))
+							#logging.error('Message')
+							#logging.error(json.dumps(data))
+					else: #to all clients
+						logging.error('else')
+						if data['messages'][x]['update']['new'] == 1: #when iss messages installes a new service
+							logging.error('update new data')
+							iss_stack[x][y] = {}
+							iss_stack[x][y] = data['messages'][x]
+							iss_install[x] = {}
+							iss_install[x] = data['messages'][x]
+						else: ## standart ISS Update message
+							logging.error('update')
+							#logging.error(json.dumps(data))
+							#logging.error(json.dumps(iss_install))
+							iss_stack[x][y] = {}
+							iss_stack[x][y] = data['messages'][x]
+							
+							logging.error(json.dumps(iss_stack))
+							iss_shadow = iss_install.copy()
+							for z in iss_shadow: #data override in install massesages with actual data
+								logging.error('z:{}'.format(z))
+								logging.error('y:{}'.format(y))
+								logging.error('x:{}'.format(x))
+								logging.error(json.dumps(data['messages'][x]))
+								logging.error(json.dumps(iss_shadow[z]))
+								if iss_shadow[z]['sender']['host'] == data['messages'][x]['sender']['host'] and iss_shadow[z]['sender']['zone'] == data['messages'][x]['sender']['zone'] and iss_shadow[z]['sender']['name'] == data['messages'][x]['sender']['name'] and iss_shadow[z]['data']['id'] == data['messages'][x]['data']['id']:
+									logging.error(json.dumps('vorhandxen'))
+									if data['messages'][x]['sender']['name'] == 'sensor':
+										iss_install[z]['data'] = data['messages'][x]['data']
+									else:
+										iss_install[z]['data']['value'] = data['messages'][x]['data']['value']
+	
+						#logging.error(json.dumps(iss_stack))
+						#del iss_stack[x][data['token']]
+			
+			'''
+				ich muss beide noch einfügen damit dann der server dann geziehlt daten abruft. nicht 20 mal die sekunde 
+				variable['zero']['darkzone']['update'] = '0'
+				variable['zero']['darkzone']['webupdate'] = '0'
+			
+			'''
 		
 		logging.error('done while')
 		ret = {}
+		logging.error(json.dumps(iss_stack))
+		logging.error(json.dumps(iot_token))
+		logging.error(json.dumps(data['token']))
 		iss_shadow = iss_stack.copy()
-		for x in iss_shadow: #return all data to client, and delete
-			if data['token'] in iss_stack[x]:
-				ret[x] = {}
-				ret[x] = iss_stack[x][data['token']]
-				del iss_stack[x][data['token']]
+		logging.error('asdaasdsa')
+		if data['token'] in iot_token:
+	
+			for x in iss_shadow: #return all data to client, and delete
+				logging.error(x)
+				#logging.error('Token')
+				#logging.error(data['token'])
+				if data['token'] in iss_stack[x]:
+					logging.error('Daten zur übermittlung gefunden')
+					#logging.error(json.dumps(iss_stack[x]))
+					#logging.error('Token')
+					#logging.error(data['token'])
+					
+					
+					ret[x] = {}
+					ret[x] = iss_stack[x][data['token']]
+					del iss_stack[x][data['token']]
+	
+			
+			logging.error(json.dumps(ret))
+			logging.error('iss ende')
+		else:
+			logging.error('unbekannter Token')
+			ausgabe = 'unbekannter token'
 		
-		logging.error(json.dumps(ret))
-		logging.error('iss ende')
 		return (ret)
 
 
@@ -293,11 +350,12 @@ class iot():
 		iot_token[token]['host'] = token
 		iot_token[token]['typ'] = 'webclient'
 		iot_token[token]['time'] = self.time('get')
-		
 		logging.error(json.dumps('iot_token'))
 		logging.error(json.dumps(iot_token))
 		ret = {}
 		ret['session_id'] = token
+		ret['iss_install'] = {}
+		ret['iss_install'] = iss_install
 		
 		return(ret)
 
@@ -324,107 +382,8 @@ class iot():
 	
 
 	
-class sensor():#sensorabfrage classe
+class sensor():#veraltet und nciht mehr geraucht, aber es wegen new noch vorhanden. 
 
-	def eingang(self,data):#erste stelle wo daten reinkommen
-		logging.error('eingang')
-		if data['sensor'] == 'new':
-			
-			newkey = self.new(10)
-			logging.debug(newkey)
-			sensor_ram[newkey] = {}
-			sensor_ram[newkey]['all_client'] = 0
-			#logging.error(json.dumps(sensor_ram))
-			for x in variable: #x ist name vom client
-				logging.debug('for')
-				sensor_ram[newkey] = {} #container erstellen
-				for y in variable[x]:
-					sensor_ram[newkey][x] = {} #container erstellen
-					if ram[x][y]['sensor'] == 1: #suche ob client Sensoren hat
-						sensor_ram[newkey][x][y] = {} #container erstellen
-						variable[x][y]['sensor'] = newkey
-						variable[x][y]['update'] = 1
-						variable[x][y]['stop'] = 1
-						sensor_ram[newkey][x][y]['abgeholt'] = 0
-						ram[newkey] = 0
-					
-			logging.error(json.dumps(variable))
-			return (newkey)
-		
-		if data['sensor'] == 'start': #Client muss antworten mir sensort:start, target_key:xxxxxxxx, name:client_name
-			'''
-			Client muss antworten mir sensor:start, target_key:xxxxxxxx, name:client_name, host:name
-			antworten sind, "go" "wait"
-			'''
-			retuerner = 'fail'
-
-			if sensor_ram[data['target_key']][data['host']][data['zone']]['abgeholt'] == 0:
-				sensor_ram[data['target_key']][data['host']][data['zone']]['abgeholt'] = 1 #auf abgeholt setzen
-				variable[data['host']][data['zone']]['sensor'] = 0 #wieder auf 0 setzen 
-				logging.error('if abfrage')
-			
-			checker = {0:0, 1:0, 2:0, 3:0}#variable vorerstellen 0 noch kein target key, 1 key erhalten (wartet), 2(key erhalten ermittelt sensor daten), 3 Daten geliefert)
-			
-			for x in sensor_ram[data['target_key']][data['host']]:
-				checker[sensor_ram[data['target_key']][data['host']][x]['abgeholt']] = checker[sensor_ram[data['target_key']][data['host']][x]['abgeholt']] + 1
-
-			if checker[2] == 0:
-				
-				sensor_ram[data['target_key']][data['host']][data['zone']]['abgeholt'] = 2 #holt nun date
-				retuerner = 'go'
-				logging.debug('go signal ')
-			else:
-				logging.debug('wait signal')
-				retuerner ='wait'
-				
-			return (retuerner) 
-		
-		if data['sensor'] == 'deliver':	#sensordaten empfangen
-			'''
-			Client muss antworten mir sensor:deliver, target_key:xxxxxxxx, name:client_name, host:hostname, werte:{}
-			antwort ist immer 'ok'
-			'''
-			
-			sensor_ram[data['target_key']][data['host']][data['zone']] = data['werte']
-			sensor_ram[data['target_key']][data['host']][data['zone']]['abgeholt'] = 3 #auf geliefert gesetzt
-			variable[data['host']][data['zone']]['stop'] = 1
-			variable[data['host']][data['zone']]['update'] = 1
-			ifabgeholtgleich3 = 0
-			vergleich = 0
-			for x in sensor_ram[data['target_key']]: #ueberpruefen ob alle Clients sensor daten gesendet hat 
-				for y in sensor_ram[data['target_key']][x]:
-					vergleich += 1
-					if sensor_ram[data['target_key']][x][y]['abgeholt'] == 3:
-						ifabgeholtgleich3 += 1
-					
-						
-				
-			if ifabgeholtgleich3 == vergleich: #wenn alle daten uebermittelet wurden. clients wieder auf normal stellung setzen
-				ram[data['target_key']] = 1
-				for x in variable: #x ist name vom client
-					logging.debug('for')
-					
-					for y in variable[x]:
-						
-						if ram[x][y]['sensor'] == 1: #suche ob client Sensoren hat
-							
-							variable[x][y]['sensor'] = 0 #standart wert zurück setzen
-							variable[x][y]['update'] = 1
-							variable[x][y]['stop'] = 0  #stop aufheben
-				
-			logging.error(json.dumps(sensor_ram))
-			logging.error(json.dumps(variable))
-		
-			return ('ok') 
-		
-		if data['sensor'] == 'return': #server antwort an anfrager, mit zwei aussagen, alle sensor daten ODER er solle weiter warten
-			if ram[data['target_key']] == 1:
-				return (sensor_ram[data['target_key']]) 
-			else:
-				return('wait')
-			
-			
-		
 	def new(self,data=10):#erstellen von schlüssel für sensor
 		logging.error('new_rand')
 		ausgabe = ''
@@ -441,9 +400,14 @@ class sensor():#sensorabfrage classe
 		logging.error(ausgabe)
 		
 		return(ausgabe)
+
 				
-class check():#standart abfrage von server-Clients
-	
+class check():
+	'''
+	dieser part ist veraltet und sollte auf dauer gelöscht werden. da nun alles über iss bearbeitet wird
+	Delete sollte in eine andere class verschobwen werden. 
+	da es weiterhin die funktion hat alle Variablen zu säubern
+	'''
 	def eingang(self,data): #über mittelt was der client nun zutun hat.
 		#logging.error(json.dumps(variable))
 		#logging.error(json.dumps(ram))
@@ -474,25 +438,26 @@ class check():#standart abfrage von server-Clients
 		logging.error(name)
 		logging.error('check::delete')
 		#logging.error(json.dumps(timeschlitz))
-		#logging.error(json.dumps(variable))
+		logging.error(json.dumps(variable))
 		logging.error(json.dumps(iot_token))
+		logging.error(json.dumps(ram))
 		#logging.error(json.dumps(iot_config))
-		
+		'''
 		if variable[host][name]['switch'] == 1: #wenn Client mit einem Multiplexer ausgestatet ist 
 			#logging.error('timeslot delete')
 			#logging.error(json.dumps(timeschlitz[host][variable[host][name]['timeslot']]))
 			del timeschlitz[host][variable[host][name]['timeslot']] #löschen variable
-			
+		'''	
 		#logging.debug(json.dumps(variable))
-		del variable[host][name] #löschen variable
+		#del variable[host][name] #löschen variable
 		
-		#logging.error('1')
+		#logging.error('-1-')
 		#logging.error(ram[host][name]['sesession_id'])
 		
 		del iot_token[ram[host][name]['sesession_id']]
 		#logging.error('2')
 		#del iot_config[host][name] 
-		#logging.error('3')
+		#logging.error('-3-')
 		
 		#logging.debug(json.dumps(ram))
 		del ram[host][name] #löschen variable
@@ -515,15 +480,95 @@ class check():#standart abfrage von server-Clients
 		return (returner)
 
 class server(): # server standart Classe
+	'''
+	das hier ist die haupt funktion
+	alle andfragen werdern hier als erstes rein geschoben 
+	und dann zu geordentet 
+	'''
+	
+	def time_slot(self):#erstellt timeslots für muliplexer
+		coun_clint = {} # count total of clients
+		new_ts = {} # timeslots counts
+		slot_count = 6 #slots per second
+		#logging.error(json.dumps('first'))
+		for x in iot_token: #count clients 
+			if iot_token[x]['host'] not in coun_clint:
+				coun_clint[iot_token[x]['host']] = 1
+				new_ts[iot_token[x]['host']] = {}
+				new_ts[iot_token[x]['host']][iot_token[x]['zone']] = {}
+				new_ts[iot_token[x]['host']][iot_token[x]['zone']]['count'] = 1
+				new_ts[iot_token[x]['host']][iot_token[x]['zone']]['token'] = x
+			else:
+				coun_clint[iot_token[x]['host']] = coun_clint[iot_token[x]['host']]  + 1
+				new_ts[iot_token[x]['host']][iot_token[x]['zone']]['count'] = coun_clint[iot_token[x]['host']]
+				new_ts[iot_token[x]['host']][iot_token[x]['zone']]['token'] = x
+	
+		ts_slots = {} #time-slots
+		#logging.error(json.dumps('second'))
+		for x in coun_clint: #create Time slots
+			slot_counter = coun_clint[x] * slot_count #max slots for client
+			slot_length = int (1000 / slot_counter) #slot time
+			count = 0 #while steering 
+			client_count = 1 #zone conter
+			ts_slot_counter = 1
+			
+			ts_slots[x] = {} 
+			while count < slot_counter: 
+	
+				if client_count not in ts_slots[x]: #first create
+					ts_slots[x][client_count] = {}
+					ts_slots[x][client_count]['lenght'] = slot_length
+					
+				ts_slots[x][client_count][ts_slot_counter] = count * slot_length
+				
+				client_count = client_count + 1
+				
+				if client_count > coun_clint[x]: # next slot
+					client_count = 1
+					ts_slot_counter = ts_slot_counter + 1
+				
+				
+				count = count + 1
+		#logging.error(json.dumps('thrid'))
+		
+		#logging.error(json.dumps(ts_slots))
+		#logging.error(json.dumps(new_ts))
+		#logging.error(json.dumps(coun_clint))
+		
+		io_con = iot()
+		for x in new_ts:
+			logging.error (x)
+			print (new_ts[x])
+			for y in new_ts[x]:
+				logging.error(y)
+				#print (new_ts[x][y])
+				slot = io_con.new_slot({'count':'1'})
+				#logging.error(json.dumps(slot))
+				#logging.error(json.dumps('hier'))
+				cha = iss_create()
+				#logging.error(json.dumps('hier1'))
+				cha.sender(config['SERVER']['Name'],'none','time_slot','system')#hier server name
+				#logging.error(json.dumps('hier2'))
+				cha.target(x,y,'Timeslot','system')
+				#logging.error(json.dumps('hier3'))
+				#logging.error(json.dumps(cha.install_data('Time_slot',ts_slots[x][new_ts[x][y]],'data')))
+				token_temp = new_ts[x][y]['token']
+				iss_stack[slot[1]][token_temp] = cha.install_data('Time_slot',ts_slots[x][new_ts[x][y]['count']],'data')
+				
 	
 	def new_data (self,umwandel):
+		
+		if umwandel['funktion'] == 'test':#sollte mal gelöscht werden
+			logging.error(json.dumps('funktion:test'))
+			raa = 'aaaa'
+			return (raa)
 
-		if umwandel['funktion'] == 'add':#neuen client in ram einfügen
+		if umwandel['funktion'] == 'add':#erzeugt Client Token, und erstelle Speicher-konstruckt
 			insertnew = 1
 			if umwandel['host'] in ram:#abfrage ob shon angemeldet
-				if umwandel['zone'] in ram[umwandel['host']]:
+				if umwandel['zone'] in ram[umwandel['host']]:#check ob Client vorhanden, wenbn ja löschen (wenn client unsauber beendet wurde )
 					logging.error('why!')
-					checker = check()
+					checker = check()##!!!!!!!hier muss die class umgezogen werden
 					checker.delete(umwandel['zone'],umwandel['host'])
 					insertnew = 1
 					 
@@ -533,37 +578,27 @@ class server(): # server standart Classe
 				ram[umwandel['host']] = {}
 				insertnew = 1
 				
-			if insertnew == 1:##wenn user nicht angelegt ist
+			if insertnew == 1:##Dies if muss weg wie auch alle insert New !!!!!!! 
 				logging.error('new')
 				ram[umwandel['host']][umwandel['zone']] = umwandel #in speicher einfügen
 				#returner = json.dumps('ok') #ok senden
-				addnew = timer_san()
+
+				
 				sesession_id = sensor.new('',20)
 				logging.error(sesession_id)
-				iot_token[sesession_id] = {}
+				iot_token[sesession_id] = {}#insert token in Session ID 
 				ret = {}
 				logging.error(json.dumps(umwandel))
 				ret['sesession_id'] = sesession_id
-				ram[umwandel['host']][umwandel['zone']]['sesession_id'] = sesession_id
+				ram[umwandel['host']][umwandel['zone']]['sesession_id'] = sesession_id #veraltet
 				#in refernz datenbank ablegen (durchsuchbar)
 				iot_token[sesession_id]['host'] = umwandel['host']
 				iot_token[sesession_id]['zone'] = umwandel['zone']
 				iot_token[sesession_id]['typ'] = 'server'
 				iot_token[sesession_id]['time'] = iot.time('','get')
-				#ablegen der IoT konfig data 
-				#iot_config[umwandel['host']] = {}
-				#iot_config[umwandel['host']][umwandel['zone']]  = {}
-				#iot_config[umwandel['host']][umwandel['zone']] = umwandel['iot']
 				
-				logging.error(json.dumps('iot_token'))
-				logging.error(json.dumps(iot_token))
-				#logging.error(json.dumps('iot_config'))
-				#logging.error(json.dumps(iot_config))
-				
-				
-				addnew.new_client(umwandel['zone'], umwandel['host']) #erzeuge Timeslice 
-				#addnew.timeslicer()
-				
+				self.time_slot()
+
 				###Copy iss_install into iss stack
 				################## HIER WEITER MACZHEN !!!!!!! ###########################
 				shadow_copy = iss_install.copy()
@@ -584,39 +619,44 @@ class server(): # server standart Classe
 			return v1.all_in(umwandel)
 			
 		elif umwandel['funktion'] == 'all_data_print': ## Print all Varibles in Error log
+			##graue werte sind vars die es mal gab
 			logging.error('ram')
 			logging.error(json.dumps(ram))
-			logging.error('timeschlitz')
-			logging.error(json.dumps(timeschlitz))
-			logging.error('variable')
-			logging.error(json.dumps(variable))
-			logging.error('sensor_ram')
-			logging.error(json.dumps(sensor_ram))
+			#logging.error('timeschlitz')
+			#logging.error(json.dumps(timeschlitz))
+			#logging.error('variable')
+			#logging.error(json.dumps(variable))
+			#logging.error('sensor_ram')
+			#logging.error(json.dumps(sensor_ram))
 			logging.error('iot_token')
 			logging.error(json.dumps(iot_token))
 			logging.error('iss_stack')
 			logging.error(json.dumps(iss_stack))
 			logging.error('iss_install')
 			logging.error(json.dumps(iss_install))
-			logging.error('gir')
-			logging.error(json.dumps(gir))
+			#logging.error('gir')
+			#logging.error(json.dumps(gir))
 			
-		elif umwandel['funktion'] == 'check': #die standart abrfragen, ob es änderungen giebt 
+		elif umwandel['funktion'] == 'check': #Veraltet
 			logging.debug('check aufruf')
 			checker = check()
-			return (checker.eingang(umwandel))
+			#return (checker.eingang(umwandel))
+			return ('veraltet')
 		
-		elif umwandel['funktion'] == 'sensor': ##wenn sensort aktiv ist. 
-			logging.error('sensor aufruf')
-			senso = sensor()
-			return senso.eingang(umwandel)
+		elif umwandel['funktion'] == 'sensor': ##veraltet
+			#logging.error('sensor aufruf')
+			#senso = sensor()
+			#return senso.eingang(umwandel)
+			return senso.eingang('veraltet')
 		
-		elif umwandel['funktion'] == 'update': ## wenn sich etwas am Server-client ändert (damit inhalt variable geändert wird)
+		elif umwandel['funktion'] == 'update': #veraltet
 			
-			return ram
+			#return ram
+			return('veraltet')
 		
-		elif umwandel['funktion'] == 'stop': ## wenn sich etwas am Server-client ändert (damit inhalt variable geändert wird)
-			
+		
+		elif umwandel['funktion'] == 'stop': ##veraltet
+			'''
 			logging.error('stop '+umwandel['zone'])
 			returner = json.dumps('nope')
 			if variable[umwandel['host']][umwandel['zone']]['stop'] == 0:
@@ -647,30 +687,28 @@ class server(): # server standart Classe
 						logging.error('delete kein neuer time sclice')
 			
 			return returner
+			'''
+			return('veraltet')
 			
 		
 		elif umwandel['funktion'] == 'delete': #wenn ein client nicht mehr benötigt wird 
 			logging.error('delete')
 			deleter = check()
 			ausgabe = deleter.delete(umwandel['zone'],umwandel['host'])
+			'''
 			if len(variable[umwandel['host']]) != 0:
 				logging.debug('delete-create new time slice')
 				create = timer_san()
 				create.timeslicer(umwandel['host'])
 			else:
 				logging.debug('delete kein neuer time sclice')
+			'''	
 			return ausgabe
-		
-		elif umwandel['funktion'] == 'timeslice': #rückgabe neuer Timeslot 
-			logging.error('timeslicer_funk')
-			logging.error(json.dumps(timeschlitz[umwandel['host']][int(variable[umwandel['host']][umwandel['zone']]['timeslot'])]))
-			variable[umwandel['host']][umwandel['zone']]['tsupdate'] = 0
-			return timeschlitz[umwandel['host']][int(variable[umwandel['host']][umwandel['zone']]['timeslot'])]
-		else:
-			logging.error('unbekannter befehl')
-			
-			return {'error': 'unbekannter befehl'}
 
+
+
+
+'''
 class timer_san():
 	def timeslicer(self,host):
 		logging.error('timeslicer')
@@ -735,7 +773,7 @@ class timer_san():
 		else:
 			variable[host][name]['switch'] = 0
 		#logging.error(str(ram[host][name]['num']))
-		'''
+		'#'#'
 		for y in ram[host][name]['iot']:
 			#logging.error('Fehler bei install daten in Master Server-'+str(ram[host][name][str(y)]['num']+1))
 			variable[host][name][y] = {}
@@ -745,10 +783,11 @@ class timer_san():
 				variable[host][name][y][x] = {}
 				variable[host][name][y][x] = ram[host][name]['iot'][y][x]
 				variable[host][name][y][x]['update'] = 0
-		'''
+		'#'#'
 				
 		 ##kann nachher gelöscht werden
 		#logging.error(json.dumps(variable))
+'''		
 		
 #################################################	
 #												#
@@ -785,7 +824,9 @@ class data_server(): #Server Thread
 			server_io = server()
 			if Server_cron_queue.empty() != True:#cron data
 				crondata = Server_cron_queue.get()
-				server_io.new_data(json.loads(crondata)) #no return data
+				lalal = server_io.new_data(json.loads(crondata))
+				#logging.error(json.dumps(lalal))
+				cron_Server_queue.put(lalal) #Retrun Data to Deamon
 					
 				
 			for x in in_data_copy: #JSON catch
@@ -1096,11 +1137,13 @@ def Demon_start(): #### main Thread
 		global Io_stack
 		global demon_queue_data
 		global Server_cron_queue
+		global cron_Server_queue
 		
 		demon_queue_data = {}
 		demon_queue_data['close'] = Queue()
 		
 		Server_cron_queue = Queue()
+		cron_Server_queue = Queue()
 		
 		TCP2Server_queue_stack = {}
 		TCP2Server_queue_stack['max_client'] = clients_max
@@ -1151,8 +1194,68 @@ def Demon_start(): #### main Thread
 		now_minute = ms_time(2) #set demon timer 
 		logging.error('ms_time {}'.format(now_minute))
 		
+		server_name = config['SERVER']['Name']
+		######## Install server in Server ###### 
+		
+		def server_return(): ### Waiter ####
+			while True:
+				if cron_Server_queue.empty() != True:#cron data
+					ret = cron_Server_queue.get()
+					logging.error('get data')
+					logging.error(json.dumps(ret))
+					return(ret)
+					break
+		
+		Server_cron_queue.put(json.dumps({'funktion':'add','host':server_name,'zone':'none','switch':'0'}))
+		
+		ser = server_return()
+		sesession_id = ser['sesession_id']
+		
+		Server_cron_queue.put(json.dumps({'funktion':'iot','iotfunk':'iss','messages':'','token':sesession_id}))
+		ser = server_return()
+		
+		Server_cron_queue.put(json.dumps({'funktion':'iot','iotfunk':'new_slot','count':'1'}))
+		ser = server_return()
+		
+		cha = iss_create()
+		cha.sender(server_name,'none','freq','system')
+		cha.update(server_name,'none','freq','system',1)
+		mess = {}
+		mess[ser[1]] = cha.install_data('freq','25','int')
+		#logging.error('aaa')
+		#logging.error(json.dumps(mess))
+		
+		Server_cron_queue.put(json.dumps({'funktion':'iot','iotfunk':'iss','messages':mess,'token':sesession_id}))
+		ser = server_return()
+		###Basic Data Set into Server
+		#logging.error(json.dumps(ser))
+		#logging.error('new send 1')
+
+
 		while True: #basic run
-			
+			'''
+			#must be AKTIVE wenn Server goes Produktive !!!!!
+			Server_cron_queue.put(json.dumps({'funktion':'iot','iotfunk':'iss','messages':'','token':sesession_id}))
+			ser = server_return()
+			if ser != {}:
+				logging.error('es ist zeug vorhanden')
+				
+				for x in ser :
+					if ser[x]['target']['host'] == server_name and ser[x]['sender']['host'] != server_name: ## Echo system, later a need real Timing System
+						logging.error('es ist für mich')
+						logging.error(json.dumps(ser[x]['data']['id']))
+						if ser[x]['data']['id'] == 'freq':
+							a = 1
+							
+							Server_cron_queue.put(json.dumps({'funktion':'iot','iotfunk':'new_slot','count':'1'}))
+							ser1 = server_return()
+							cha.delete()
+							cha.sender(server_name,'none','freq','system')
+							cha.update(server_name,'none','freq','system',0)
+							mess = {}
+							mess[ser1[1]] = cha.install_data('freq',ser[x]['data']['value'],'int')
+							Server_cron_queue.put(json.dumps({'funktion':'iot','iotfunk':'iss','messages':mess,'token':sesession_id}))
+			'''
 			if data_server_prozess.is_alive() != True:
 				logging.error(json.dumps('server Thread non aktive'))
 				stopper = 1

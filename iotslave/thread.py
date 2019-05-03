@@ -21,7 +21,7 @@ class dict_copy :
 
 			if type (data[k]) == dict:
 				loop[0] = loop[0] + 1
-				loop[loop[0]] = k
+				loop[loop[0]] = str(k)
 				self.create(loop,target,'')
 				self.rekursive(data[k],target,loop)
 			else:
@@ -119,14 +119,14 @@ class thread_class:
 						#print ('new data in')
 						#print (array[x])
 						#print ('new data in')
-						copx.copy(array[x]['gir'],'gir')
+						copx.copy(array[x]['gir'],'gir') #put data in Thread GIR 
 						#print ('innter GiR')
 						#print (gir)
 						#print ('innter GiR')
 					else:
 						print ('############### with data #############')
 						no_direkt_data = 0
-						returndata = thread_run.work(array[x]['gir'],gir,Thread_ram) #iss data komplete
+						returndata = thread_run.work(array[x]['gir'],gir,Thread_ram,logger) #Send Direkt Data to Thread 
 
 						Thread_ram = returndata[1]
 						if returndata[0] != '':
@@ -148,18 +148,19 @@ class thread_class:
 				#print (gir)
 				#print (Thread_ram)
 				#print ('############### no data #############')
-				returndata = thread_run.work('',gir,Thread_ram)
+				returndata = thread_run.work('',gir,Thread_ram,logger)
 				#print (returndata)
 				Thread_ram = returndata[1]
 				if returndata[0] != '':
-	
+					
 					for h in returndata[0]:
+						#print (returndata)
 						out_data.put(returndata[0][h]) #send data to clientserver
 								
 					returndata.clear()
 
 
-			time.sleep(0.5)  #### should be triggert by thread him self .... must be correctet later
+			time.sleep(0.05)  #### should be triggert by thread him self .... must be correctet later
 
 	def time (self,data):
 		if data == 'get':

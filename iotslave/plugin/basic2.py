@@ -1,6 +1,6 @@
 from multiprocessing import Process, Queue
 import os, time, random, datetime, json
-
+#### zum Virtuellen Aktor umbauen
 class gir_check:
 	
 	def __init__(self):
@@ -34,10 +34,10 @@ class basic2:
 	
 	def install(self,logger): #install im ram 
 		#logger.debug('install theard')
-		print ('###################### BASIC2 ###########################')
+		#print ('###################### BASIC2 ###########################')
 		ret = {}
 		
-		ret['name'] = 'basic'
+		ret['name'] = 'basic2'
 		
 		ret['iss'] = {}
 		ret['iss'][1] = {}
@@ -47,7 +47,7 @@ class basic2:
 			
 		return(ret)
 		
-	def work (self,data_work,gir,ownram):
+	def work (self,data_work,gir,ownram,logger):
 		ret = {}
 		check_verzeichniss = gir_check()
 		if data_work != '':
@@ -58,7 +58,7 @@ class basic2:
 				
 				if ttt != self.ram['time']:
 					self.ram['time'] = ttt
-					#print (self.ram)
+					##print (self.ram)
 					logger.error('new time {}'.format(ttt))
 					#if self.ram['gir']['']
 				
@@ -100,8 +100,9 @@ class basic2:
 				else:
 					array[1]['data']['value'] = 1
 					#print ('########### HIER DIE 1 ###############')
-
-		return ([array,ownram])
+		
+		return (['',ownram])
+		##return ([array,ownram])
 		
 	def time (self,data):
 		if data == 'get':

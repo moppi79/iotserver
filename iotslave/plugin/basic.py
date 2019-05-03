@@ -1,6 +1,8 @@
 from multiprocessing import Process, Queue
 import os, time, random, datetime, json
 
+#####This File ist DEATH ######
+
 class dict_copy :
 
 	def copy(self,source,target): #source must a Dictonary, Target dictonary musst be a string 'target' and deklared as global 
@@ -50,6 +52,7 @@ class basic:
 	
 	def install(self,logger): #install im ram 
 		logger.debug('install theard')
+		print ('###################### BASIC1 ###########################')
 		ret = {}
 		
 		ret['name'] = 'basic'

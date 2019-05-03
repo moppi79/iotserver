@@ -22,13 +22,14 @@ class gpio_abruf:
 		return('zero')
 		
 	def install(self,ic):
-		print (ic)
+		#print (ic)
 		ret = {}
 		new_iss_number = skirmish(30)
 		
 		ret[new_iss_number] = {}
 		ret[new_iss_number]['data'] = {}
 		ret[new_iss_number]['data'] = ic['data']
+		ret[new_iss_number]['data']['value'] = 0
 		ret[new_iss_number]['update'] = {}
 		ret[new_iss_number]['update']['new'] = 1
 		
@@ -62,9 +63,9 @@ class gpio_abruf:
 		
 	def comparison(self,ram,data,logger):
 		ret = {}
-		print ('aaaa')
-		print (ram)
-		print ('aaaa')
+		#print ('aaaa')
+		#print (ram)
+		#print ('aaaa')
 		if data != '':
 			mod = 1
 			ret_mod = {}
@@ -73,10 +74,10 @@ class gpio_abruf:
 				glo_ram['ram'][data['data']['id']]['pwm'].ChangeDutyCycle(data['data']['value'])
 				glo_ram['ram'][data['data']['id']]['pwm'].ChangeFrequency(data['data']['hz'])
 				glo_ram['ram'][ram['data']['id']]['value'] = data['data']['value']
-				print ("PWM")
+				#print ("PWM")
 			elif ram['data']['typ'] == 'out':
 				
-				GPIO.output(data['data']['id'], data['data']['value'])
+				GPIO.output(int(data['data']['id']), int(data['data']['value']))
 				glo_ram['ram'][ram['data']['id']]['value'] = data['data']['value']
 				print ("out")
 			
@@ -85,7 +86,7 @@ class gpio_abruf:
 				#es benötigt noch eine load funktion in der setup def und hier ein start und ende
 				#wird später eingebaut 
 				data['data']['value']
-				print('Datenübertragung zum MOD !!!!')
+				#print('Datenübertragung zum MOD !!!!')
 				ret_mod = {1:1,"krams":7777,'value':'la la la'}
 				
 			
@@ -140,7 +141,7 @@ class gpio_abruf:
 			
 					
 				
-		print (ret)
+		#print (ret)
 		return(ret)
 		
 def skirmish(length): #zufallsgenerator
@@ -161,11 +162,11 @@ class thread_gpio: #Thread
 	
 	def run(system,chips,in_data,out_data,logger):
 		
-		print (system)
-		print (chips)
+		#print (system)
+		#print (chips)
 		GPIO.setmode(GPIO.BCM)
 		GPIO.setwarnings(False)
-		print ('########## TREAD START ########')
+		#print ('########## TREAD START ########')
 		call = gpio_abruf()
 		count = 1
 		chipname_list = {}
@@ -173,7 +174,7 @@ class thread_gpio: #Thread
 			call.setup(chips[x])
 			chipname_list[x] = {}
 		
-		print (chipname_list)
+		#print (chipname_list)
 
 		
 		glo_ram = chips
@@ -181,7 +182,7 @@ class thread_gpio: #Thread
 		
 			count = count + 1
 			
-			print ('Loop Thread gpio'+ str(count))
+			#print ('Loop Thread gpio'+ str(count))
 			
 			################### ISS Abfrage Vom Haupt Prozess ANFANG #####################
 			
@@ -202,21 +203,21 @@ class thread_gpio: #Thread
 					out_data.put(new_var)
 					if new_data[x]['target']['name'] in glo_ram['loop']:
 						del glo_ram['loop'][new_data[x]['target']['name']]
-					print('old delte')
+					#print('old delte')
 					
 			for x in glo_ram['loop']: #call Hardware to checkup
 				
 				new_var = call.comparison(glo_ram[x],'',logger)
 				if new_var != {}:
-					print ('send data')
-					print (new_var)
+					#print ('send data')
+					#print (new_var)
 					out_data.put(new_var)
 			
 			################### ISS Abfrage Vom Haupt Prozess ENDE #####################
 			
 			
-			time.sleep(0.1)
-			if count == 60:
+			time.sleep(0.06)
+			if count == 600:##Secure Debug Break (Delete after)
 				break
 		
 		

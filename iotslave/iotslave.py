@@ -1,4 +1,3 @@
-# coding=utf8
 import daemon, os, time, sys, signal, lockfile, socket, logging, datetime, json, random, configparser, fileinput
 
 from multiprocessing import Process, Queue
@@ -6,6 +5,10 @@ from collections import defaultdict
 
 from i2c_thread import thread_i2c, i2c_abruf
 from gpio_thread import thread_gpio, gpio_abruf
+
+from TCP_Thread import TCP_run,server_coneckt
+
+from iss_helper import iss_create
 
 import RPi.GPIO as GPIO
 
@@ -33,9 +36,7 @@ ic_chip = defaultdict(object)
 
 sensordic = defaultdict(object)		
 
-plugin_class = {'basic2','text_display'}
-
-
+#plugin_class = {'basic2','text_display','io_basic'}
 for x in config['module']:
 	if config['module'][x] == "1":
 		exec('from module.'+x+' import '+x+'') 
@@ -44,6 +45,11 @@ for x in config['module']:
 for x in config['sensors']:
 	if config['sensors'][x] == "1":
 		exec('from sensors.'+x+' import '+x+'') 
+		
+plugin_class = {}	
+for x in config['plugin']:
+	if config['plugin'][x] == "1":
+		plugin_class[x] = 1
 
 #from plugin.basic import basic
 
@@ -120,52 +126,42 @@ class gpio:
 					else:
 						self.data_to_iss(z,x,ram['bus_stack'][x][y]['icname'],install_data[z])
 
-		data_standart = {}	
+		
 		data_iss = {}
 		sensor_for = 0
-		for x in sensor: #only runs on Sensor entrys 
-			sensor_for = 1
+		
+		for x in sensor: #only runs on Sensor entrys
+			
+			if 'data_standart' not in ram['bus_stack'][sensor[x]['bus']]:
+				ram['bus_stack'][sensor[x]['bus']]['data_standart'] = {}
+				ram['bus_stack'][sensor[x]['bus']]['sensor_update'] = {}
+				ram['bus_stack'][sensor[x]['bus']]['sensor'] = {}
+				for g in config['sensors']:
+				#print (config['sensors'][x])
+					
+					ram['bus_stack'][sensor[x]['bus']]['sensor_update'][g] = ''
+					ram['bus_stack'][sensor[x]['bus']]['sensor_update'][g] = config['sensors'][g]
+			ram['bus_stack'][sensor[x]['bus']]['sensor'][x] = sensor[x]
 			b = sensor[x]
 			call = {}
 			exec("call['"+ sensor[x]['bus'] +"'] = "+ sensor[x]['bus'] +"_abruf()")
 			a = call[sensor[x]['bus']].sensor_install(b)
-			if b['bus'] in data_standart:
-				data_standart[sensor[x]['bus']][x] = {}
-				data_standart[sensor[x]['bus']][x] = a[1]
-			else: ## wenn nicht vorhanden erzeugen
-				data_standart[sensor[x]['bus']] = {}
-				ram['bus_stack'][sensor[x]['bus']]['sensor'] = {}
-				data_iss[sensor[x]['bus']] = {}
-				data_standart[sensor[x]['bus']][x] = {}
-				data_standart[sensor[x]['bus']][x] = a[1]
+			print ('#####SENSOR#########')
+			print (sensor)
+			print (a)
+			
+			
+			for y in a[2]: #ISS Create
+			
+				self.data_to_iss(y,sensor[x]['bus'],"sensor",a[2][y])
+			
+			for y in a[1]: #Standart Konfig betanken
 				
-			
-			data_iss[sensor[x]['bus']] = a[2]
-			ram['bus_stack'][sensor[x]['bus']]['sensor'][x] = sensor[x] #Sensor daten kopiern
-			ram['bus_stack'][sensor[x]['bus']]['sensor_update'] = {}
-			
-			for g in config['sensors']:
-				#print (config['sensors'][x])
-				ram['bus_stack'][sensor[x]['bus']]['sensor_update'][g] = ''
-				ram['bus_stack'][sensor[x]['bus']]['sensor_update'][g] = config['sensors'][g]
-
-		if sensor_for == 1: #sorting Sensor entrays
-			for y in data_standart:
-				for t in data_iss[y]: #erzeuge ISS Daten und instaliere in den Bus 
-					new_data = {}
-					new_data = data_iss[y][t]
-					new_data['data'] = {}
-					new_data['data'] = data_standart[y]
-					new_data['data']['id'] = 'xx'
-					ram['bus_stack'][y]['data_standart'] = {}
-					ram['bus_stack'][y]['data_standart'] = data_standart[y]
-					self.data_to_iss(t,y,"sensor",new_data)
-					
-			#ram['bus_stack'][sensor[x]]['sensor_update'] = config['sensors']
-
+				ram['bus_stack'][sensor[x]['bus']]['data_standart'][y] = a[1][y]
+				
 		
-		
-		
+		print ('#############SENSOR DATA##############') 
+		#print (ram['bus_stack'][sensor[x]['bus']])
 		self.Prepare_start()# starting all threads
 		
 		
@@ -182,8 +178,10 @@ class gpio:
 		
 		iss[iss_id]['update'] = data['update']
 		iss[iss_id]['data'] = data['data']
+		
+		iss[iss_id]['counter'] = ram['Massage_counter'] ######### Hier neu 
 						
-		ram['Massage_counter'] = ram['Massage_counter'] + 1
+		ram['Massage_counter'] = ram['Massage_counter'] + 1 
 		
 		
 	
@@ -242,15 +240,19 @@ class gpio:
 	def comparison(self): #Call Hardware
 		
 		shadow_copy = iss.copy()
-		
+		print('####abfrage#####')
+		print (shadow_copy)
 		for x in shadow_copy: #is data in ISS to send hardware
 			new_data = ''
+			print ("ja hier daten")
+			print (shadow_copy[x])
 			if 'target' in shadow_copy[x]:#Rufe alle verfügbaren Schnitstellen ab
 				for y in ram['gpio']:
 					
 					#daten in thread hoch laden
 					if (shadow_copy[x]['target']['host'] == ic_list['host']) and (shadow_copy[x]['target']['system'] == y):
-						print ("ja hier daten")
+						
+						print ('###!!!!!!!#####!!!!!!#####!!!!!#####')
 						ram['gpio'][y]['queue_out'].put(iss[x])
 						del iss[x]
 						
@@ -264,6 +266,8 @@ class gpio:
 			if new_data != {}:
 				for o in new_data:
 					for z in new_data[o]:
+						print('§§§§§§§$%$%%%%!!!!!!!!!!!!! hier DATA VON IO')
+						print(new_data[o])
 						iss[z] = {}
 						iss[z] = new_data[o][z]
 						iss[z]['sender']['host'] = ic_list['host']
@@ -276,110 +280,71 @@ class iot:
 	
 	def __init__(self): 
 		print ('init')
-		'''
-		server =  server_coneckt()
-		loop = 0
-		for x in iss:
-			loop = loop + 1 
-			
-			
-		if loop != 0:
-		
-			ret = server.sock2({'funktion':'iot','iotfunk':'new_slot','count':loop})
-		
-			print (ret)
-			loop2 = 1
-			send_install_data = {}
-			for x in iss:
-				send_install_data[ret[str(loop2)]] = iss[x]
-				loop2 = loop2 + 1
-			
-			print (send_install_data)
-			new = server.sock2({'funktion':'iot','iotfunk':'iss','messages':send_install_data,'token':ram['sesession_id']})
-			
-
-		
-		Hier eine server abfrage für globale gir daten
-		
-		Download vom Server und upload dieser daten. 
-			
-			
-			
-		'''
-			
+		self.submit_counter = 0
 
 	def update(self):
 		global iss
-		sortiert = self.sorting_iss()#lese daten aus dem ISS
-		
-		server =  server_coneckt()
+		sortiert = self.sorting_iss()#lese daten aus dem ISS 
+		print ('!!!!!!!!!!!!!####sorter######!!!!!!!!!!!!!!!')
+		print (sortiert)
+		#server =  server_coneckt()
 		logging.error('update')
 		loop = 0
 		for x in sortiert:
-			loop = loop + 1
+			self.submit_counter = self.submit_counter + 1
+			ram['TCP-SERVER']['data_out'].put(sortiert[x]) 
+			print('HIER HIER HIER')
+			#iss = server.sock2({'funktion':'iot','iotfunk':'iss','messages':submit_data,'token':ram['sesession_id']})
 		
-		if loop != 0:
-			hashes = server.sock2({'funktion':'iot','iotfunk':'new_slot','count':loop})
-			update_copy = iss.copy()
-			count = 1
-			submit_data = {}
-			for x in sortiert:
+		if ram['TCP-SERVER']['data_in'].empty() != True:
+			while ram['TCP-SERVER']['data_in'].qsize() != 0:
+				iss[thread.skirmish('',20)] = ram['TCP-SERVER']['data_in'].get()
+				print ('data in')
+			
+		logging.error(json.dumps(iss))
+		update_copy = iss.copy()
+		for x in update_copy: #daten aus dem ISS löschen nach dem sie in Class Thread zum GIR hinzugefügt wurden
+			if 'plugin' in update_copy[x]:
+				#logging.error(json.dumps(iss[x]))
+				print ('del')
+				del iss[x]
 				
-				submit_data[hashes[str(count)]] = sortiert[x] 
-				
-				count = count + 1 
-			
-			
-			
-			iss = server.sock2({'funktion':'iot','iotfunk':'iss','messages':submit_data,'token':ram['sesession_id']})
-			
-			logging.error(json.dumps(iss))
-			
-			update_copy = iss.copy()
-			for x in update_copy:
-				if 'plugin' in update_copy[x]:
-					#logging.error(json.dumps(iss[x]))
-					print ('del')
-					del iss[x]
-					
-				else:
-					print ('kein plugin')
-		
-		
-		#print (iss)
-		
-		
-		
-		'''
-		
-		upload von eigenen daten an IoT server
-		danach löschen 
-		abfrage vom server nach neuen IoT daten
-
-{"data": {"value": 1, "id": "1"}, "counter": 78, "update": {"new": 0}, "plugin": 1, "sender": {"host": "raspi2", "system": "i2c", "zone": "balkon", "name": "demoic"}}
+			else:
+				print ('kein plugin')
 
 
-			
-		'''
 	def sorting_iss (self):#sorting double data and ignoring 
 		#logging.error(json.dumps(iss))
 		copy_iss = iss.copy()
 		ret = {}
 		for x in copy_iss:
-			if 'update' in copy_iss[x]:
-				print (copy_iss[x])
-				if copy_iss[x]['update']['new'] == 0:
-					name = ''+copy_iss[x]['data']['id']+''+copy_iss[x]['sender']['system']+''+copy_iss[x]['sender']['name']+''
-					if name not in ret:
+			if copy_iss[x]['sender']['host'] == ic_list['host'] and copy_iss[x]['sender']['zone'] == ic_list['zone']:
+				if 'update' in copy_iss[x]:
+					print (copy_iss[x])
+					if copy_iss[x]['update']['new'] == 0:
+												
+						if isinstance(copy_iss[x]['data']['id'],int):
+							inttostr = str(copy_iss[x]['data']['id'])
+						else:
+							inttostr = copy_iss[x]['data']['id']
+							
+						name = ''+inttostr+''+copy_iss[x]['sender']['system']+''+copy_iss[x]['sender']['name']+''
+						if name not in ret:
+							ret[name] = {}
+							ret[name] = copy_iss[x]
+						
+						if ret[name]['counter'] > copy_iss[x]['counter']:
+							ret[name] = copy_iss[x]
+					else:
+						
+						if isinstance(copy_iss[x]['data']['id'],int):
+							inttostr = str(copy_iss[x]['data']['id'])
+						else:
+							inttostr = copy_iss[x]['data']['id']
+							
+						name = ''+inttostr+''+copy_iss[x]['sender']['system']+''+copy_iss[x]['sender']['name']+''
 						ret[name] = {}
 						ret[name] = copy_iss[x]
-					
-					if ret[name]['counter'] > copy_iss[x]['counter']:
-						ret[name] = copy_iss[x]
-				else:
-					name = ''+copy_iss[x]['data']['id']+''+copy_iss[x]['sender']['system']+''+copy_iss[x]['sender']['name']+''
-					ret[name] = {}
-					ret[name] = copy_iss[x]
 		
 		logging.error('transfer DATA')			
 		logging.error(json.dumps(ret))
@@ -391,7 +356,6 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 	
 		
 		for x in plugin_class: #abfrage von allen plugins
-			
 			
 			thread_install_data = thread_class()
 
@@ -490,6 +454,7 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 						
 						if iss[i]['target']['name'] == ram['pluginhold'][x]['name']:
 							ram['pluginhold'][x]['queue_out'].put(iss[i])
+							print ('del iss plugin')
 							del iss[i]
 							
 						#ram['pluginhold'][x]['queue_out'].put(iss[i])
@@ -506,7 +471,7 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 				
 				
 				while ram['pluginhold'][x]['queue_in'].qsize() != 0: #alle verfügabren daten abrufen 
-
+						print('###########data call###############')
 						data1 = ram['pluginhold'][x]['queue_in'].get()
 						ausgabe[z] = data1
 						z = z + 1
@@ -523,8 +488,8 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 						iss[new_key]['sender']['system'] = 'plugin'
 						iss[new_key]['counter'] = ram['Massage_counter'] 
 						ram['Massage_counter'] = ram['Massage_counter'] + 1
-						#print ('new data')
-						#print (iss[new_key])
+						print ('#########new data################')
+						print (iss[new_key])
 						#print ('new data')
 					#print (array1)
 				##übertragen von daten zum Thread
@@ -622,7 +587,7 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 
 		return (ret)
 
-class server_coneckt:
+class server_coneckt2alt:
 	
 	def __init__(self):
 		
@@ -772,29 +737,72 @@ def ms_time(select): #return 0 ms 1 Second 2 array with both
 '''
 hier fängt die deamon schleife an 
 '''
+class tcp_control:
+	
+	def __init__(self):
+
+		ram['TCP-SERVER'] = {}
+		ram['TCP-SERVER']['data_out'] = Queue() ### zum server 
+		ram['TCP-SERVER']['data_in'] = Queue() ### Vom server
+		ram['TCP-SERVER']['session_id'] = ic_list #erstmal mit standart server daten später dann nur noch Session ID 
+		ram['TCP-SERVER']['thread'] = ''
+		
+		TCP_data = TCP_run.start(HOST, PORT,ic_list,logger)
+		self.token = TCP_data
+		print (TCP_data)
+		print ('ja token')
+		
+	
+	def kill (self):
+		logger.error('end TCP Thread')
+		print ('kill')
+		ram['TCP-SERVER']['thread'].terminate()
+		ram['TCP-SERVER']['data_out'].close
+		ram['TCP-SERVER']['data_in'].close
+	
+	def start(self):
+		#ram['TCP-SERVER']['thread'] 
+		#TCP_run.run('',HOST, PORT,self.token,ram['TCP-SERVER']['data_in'],ram['TCP-SERVER']['data_out'],logger)
+		
+		ram['TCP-SERVER']['thread'] = Process(target=TCP_run.run, name='iot_tcp_provider', args=('',HOST, PORT,self.token,ram['TCP-SERVER']['data_in'],ram['TCP-SERVER']['data_out'],logger)) #prozess vorbereiten
+		ram['TCP-SERVER']['thread'].start() # Prozzes starten
+	
 	
 
 def main_loop():
 	loopmaster = 0 #Counter wie oft Schleife gelaufen ist (für debug wichtig)
-
+	ram['kill'] = 0
 	ram['Massage_counter'] = 0 #Massage counter
 	ram['iss_trasher'] = {} #Trasher variable
 	run = 0 # variable für Gelaufne zeit
 
-	freq = 5 #Aktuelle geschwindkeit
+	freq = 20 #Aktuelle geschwindkeit
 	loop_server_call = 0 # start parameter für interne Serverabfrage
 
-	print('Server Initalisiern')
-	socket_call = server_coneckt()#Server verbindung starten
-	socket_call.check()
-	print('Server Initalisiern ende')
-	logger.error('server initalisiert')
+	tcp = tcp_control()
+	tcp.start()
+	
+	#time.sleep(5)
+	#ram['TCP-SERVER']['data_out'].put('aaaaa')
+	#ram['TCP-SERVER']['data_out'].put('bbbbb')
+	
+	
+	
+	
+	##das hier kann weg
+	#print('Server Initalisiern')
+	#socket_call = server_coneckt()#Server verbindung starten
+	#socket_call.check()
+	#print('Server Initalisiern ende')
+	#logger.error('server initalisiert')
+	##/das hier kann weg ende
+	
 	
 	print('thearad Initalisiern')
 	plugin_obj = thread()
 	print('thearad Initalisiern ende')
 	logger.error('therad  initalisiert')
-	
+
 	print('GPIO Initalisiern')
 	gpio_handler = gpio()
 	logger.error('GPIO initalisiert')
@@ -804,11 +812,37 @@ def main_loop():
 	logger.error('iot  initalisiert')
 
 	print('Starten While schleife ')
+	'''
+	iot_obj.update()
+	
+	time.sleep(5)
+	iot_obj.update()
+	time.sleep(2)
+	plugin_obj.comparison()
+	time.sleep(2)
+	'''
 	while True:
-		#break
+		iss_copy = iss.copy()
+		for x in iss_copy:
+			if 'target' in iss_copy[x]:
+				if iss_copy[x]['target']['system'] == 'system':
+					ram[iss[x]['data']['id']] = iss[x]['data']['value']
+					del iss[x]
+		'''		
+		plugin_obj.end()
+		gpio_handler.end()
+		tcp.kill()
+		print('#########RAM###########')
+		print (ram)
+		print('#########gir###########')
+		print (gir)
+		print('#########iss###########')
+		print(iss)
+		break
+		'''
 		########### Loop Time Management head #############
 		start = ms_time(0)
-		#print (start)
+		print (start)
 		#print('start')
 
 		########### Loop Time Management head END#############
@@ -836,14 +870,14 @@ def main_loop():
 		if loop_server_call == 0 and ms_time(0) < 500000:
 			logger.error('checker halb')
 			loop_server_call = 1
-			socket_call.check()
+			#socket_call.check()
 			#print (ms_time(0) - ministart )
 			
 			
 		if loop_server_call == 1 and ms_time(0) > 500000:
 			logger.error('checker voll')
 			loop_server_call = 0
-			socket_call.check()
+			#socket_call.check()
 			#print (ms_time(0) - ministart )
 			
 		
@@ -923,7 +957,8 @@ def main_loop():
 			wait = 0
 		
 		speed = wait / 1000000 #ermittel Float
-		
+		print ('speed')
+		print (speed)
 		time.sleep(speed)
 		
 		########### Loop Time Management Foot #############
@@ -932,6 +967,7 @@ def main_loop():
 			logger.error('kill signal')
 			plugin_obj.end()
 			gpio_handler.end()
+			tcp.kill()
 			logging.error('######## RAM #########')
 			#logging.error(json.dumps(ram))
 			logging.error('######## GIR #########')
@@ -956,9 +992,9 @@ def main_loop():
 				print(iss)
 				plugin_obj.end()
 				gpio_handler.end()
-				testersa = {'funktion':'delete','zone':ic_list['zone'],'host':ic_list['host']}
-			
-				antwort = socket_call.sock2(testersa)
+				tcp.kill()
+				tcp = server_coneckt(HOST,PORT,logger)
+				antwort = tcp.sock2({'funktion':'delete','zone':ic_list['zone'],'host':ic_list['host']})
 				
 				#print (ram['timeslice'])
 				print ('programm ende')
@@ -970,8 +1006,9 @@ def main_loop():
 		if 'singledebug' == sys.argv[1]:
 			plugin_obj.end()
 			gpio_handler.end()
-			testersa = {'funktion':'delete','zone':ic_list['zone'],'host':ic_list['host']}
-			antwort = socket_call.sock2(testersa)
+			tcp.kill()
+			tcp = server_coneckt(HOST,PORT,logger)
+			antwort = tcp.sock2({'funktion':'delete','zone':ic_list['zone'],'host':ic_list['host']})
 			print (antwort)
 			print ('######## RAM #########')
 			print(ram)

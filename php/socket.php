@@ -46,6 +46,7 @@ class iot{
 			#print_r($data);
 			$this->vars['session_id'] = $data['session_id'];
 			$return['new_session_id'] = $data['session_id'];
+			$return['install'] = $data['iss_install'];
 		}
 		
 		iot::func_create('web_array');
@@ -106,7 +107,7 @@ class iot{
 		$transfer =  json_encode($this->vars[function_list]);
 		
 		$count = strlen($transfer);
-
+		print "abc";
 		socket_send($socket,$count,strlen($count),MSG_DONTROUTE); #send length data to server
 
 		socket_recv($socket , $buf , 2 , MSG_WAITALL ); #become ack
@@ -125,15 +126,15 @@ class iot{
 		
 	}
 }
-
+/**
 $a = new iot();
 
 $a->servervalue('session_id','');
-$a->servervalue('host','localhost');
+$a->servervalue('host','192.168.1.30');
 $a->servervalue('port',5050);
 
 print_r($a->coneckt());
-/**
+
 $a->push_data(1,'host','raspi2');
 $a->push_data(1,'location','balkon');
 $a->push_data(1,'ic_chip','2');

@@ -28,13 +28,13 @@ class i2c_abruf:
 	
 	def sensor_install(self,ic):
 		
-		print('aaaaa')
-		print(ic)
-		print('aaaaa')
+		#print('aaaaa')
+		#print(ic)
+		#print('aaaaa')
 		sensor_class ={}
 		
-		print ('from sensors.'+ic['sensor_class']+' import '+ic['sensor_class']+'') 
-		print ("sensor_class['"+ic['sensor_class']+"'] = "+ic['sensor_class']+"()")
+		#print ('from sensors.'+ic['sensor_class']+' import '+ic['sensor_class']+'') 
+		#print ("sensor_class['"+ic['sensor_class']+"'] = "+ic['sensor_class']+"()")
 		
 		exec('from sensors.'+ic['sensor_class']+' import '+ic['sensor_class']+'') 
 		exec("sensor_class['"+ic['sensor_class']+"'] = "+ic['sensor_class']+"()")
@@ -44,17 +44,19 @@ class i2c_abruf:
 		ret[1] = {}
 		ret[2] = {}
 		for x in data:
-			print ('aaabbbb')
-			print (data[x])
+			#print ('aaabbbb')
+			#print (data[x])
 			ret[1][x] = {} 
 			ret[1][x] = data[x]
 			
 			new_iss_number = skirmish(30)
 			ret[2][new_iss_number] = {}
 			ret[2][new_iss_number]['data'] = {}
-			ret[2][new_iss_number]['data'][x] = {}
-			ret[2][new_iss_number]['data'][x] = data[x]
-			ret[2][new_iss_number]['data'][x]['usable'] = '0'
+			ret[2][new_iss_number]['data'] = {}
+			ret[2][new_iss_number]['data']['id'] = x
+			ret[2][new_iss_number]['data']['value'] = data[x]['value']
+			ret[2][new_iss_number]['data']['unit'] = data[x]['unit']
+			ret[2][new_iss_number]['data']['usable'] = '0'
 			ret[2][new_iss_number]['update'] = {}
 			ret[2][new_iss_number]['update']['new'] = 1
 			
@@ -142,22 +144,25 @@ class i2c_abruf:
 		'''
 		
 	def sensor (self,sensor_conf,sensor_ram,iss_data,logger):
-		print ('sensor aa')
-		print (sensor_ram)
-		print ('sensor bb')
-		print  (sensor_conf)
-		print ('sensor cc')
+		#print ('sensor aa')
+		#print (sensor_ram)
+		#print ('sensor bb')
+		#print  (sensor_conf)
+		#print ('sensor cc')
+		#print ('iss data')
+		#print (iss_data)
 		data = {}
 		
 		#return({1:2})
 		ret = {}
 		for x in sensor_ram:
-			print ('senor def')
-			print (x)
+			#print ('senor def')
+			#print (x)
+			#print (sensor_ram)
 			
 			data[x] = sensor_class[sensor_ram[x]['sensor_class']].out(sensor_ram[x]['data'])
-			data_insert = {}
-			data_insert = iss_data[x]
+			#data_insert = {}
+			#data_insert = iss_data[x]
 			for z in data[x]:
 				#print ('z')
 				#print (z)
@@ -165,35 +170,37 @@ class i2c_abruf:
 				#print (data_insert)
 				#print ('data_x_z')
 				#print (data[x][z] )
-				data_insert[z]['value'] = data[x][z] 
+				#data_insert[z]['value'] = data[x][z] 
 			
 			#print (data_insert)
 							
-			new_iss_number = skirmish(30)
-			ret[new_iss_number] = {}
-			ret[new_iss_number]['sender'] = {}
-			ret[new_iss_number]['update'] = {}
-			#ret[new_iss_number]['sender']['name'] = {}
-			ret[new_iss_number]['sender']['name'] = 'sensor'
-			
-			ret[new_iss_number]['data'] = {}
-			ret[new_iss_number]['data'] = data_insert
-			ret[new_iss_number]['data']['id'] = 'xx'
-			ret[new_iss_number]['update']['new'] = 0
-			
-			ret[new_iss_number]['counter'] = glo_ram['Massage_counter'] 
-			glo_ram['Massage_counter'] = glo_ram['Massage_counter'] + 1
+				new_iss_number = skirmish(30)
+				ret[new_iss_number] = {}
+				ret[new_iss_number]['sender'] = {}
+				ret[new_iss_number]['update'] = {}
+				#ret[new_iss_number]['sender']['name'] = {}
+				ret[new_iss_number]['sender']['name'] = 'sensor'
+				
+				ret[new_iss_number]['data'] = {}
+				ret[new_iss_number]['data']['value'] = data[x][z]
+				ret[new_iss_number]['data']['id'] = z
+				ret[new_iss_number]['update']['new'] = 0
+				
+				ret[new_iss_number]['counter'] = glo_ram['Massage_counter'] 
+				glo_ram['Massage_counter'] = glo_ram['Massage_counter'] + 1
 			
 				
+		
 				
-		print ('ausgabe')
+		#print ('aussgabe')
+		#print (ret)
 		return (ret)
 	
 	def sensor_timer (self,x): # gibt false/True aus ob der counter abgelaufen ist  
 		
 		timer = datetime.datetime.now()
-		print('asdasdsadasd')
-		print (x) 
+		#print('asdasdsadasd')
+		#print (x) 
 		if Sensor_timer == {}:
 			Sensor_timer['count'] = 0
 			Sensor_timer['last_time'] = timer.second
@@ -205,9 +212,9 @@ class i2c_abruf:
 		if Sensor_timer['count'] == x: 
 			Sensor_timer['count'] = 0
 			ret = True
-			print ('true')
+			#print ('true')
 		else:
-			print ('false')
+			#print ('false')
 			ret = False
 		
 		return (ret)
@@ -229,7 +236,7 @@ class i2c_abruf:
 def skirmish(length): #zufallsgenerator
 	ausgabe = ''
 	for x in range(0,length):
-		#print (x)
+		##print (x)
 		zufall = random.randrange(1,4)
 	
 		if (zufall == 1):
@@ -245,26 +252,33 @@ class thread_i2c: #Thread
 	def run(system,chips,in_data,out_data,logger):
 		
 		count = 1
-		print (chips)
+		#print (chips)
+		sensor_install = 0
 		if 'sensor' in chips: ##sorting sensor data aus chips raus
-			print('SENSORCONF')
-			print (chips['sensor'])
+			sensor_install = 1
+			#print('SENSORCONF')
+			#print (chips['sensor'])
 			sensor_ram = chips['sensor'] 
 			sensor_conf = chips['sensor_update'] #alle ladbaren module und zeit 
 			sensor_data_standart = chips['data_standart'] #ISS data{} inhalte
-			print (chips['sensor_update'])
+			#print (chips['sensor_update'])
 			del chips['sensor_update']
 			del chips['data_standart']
 			del chips['sensor']
+			
+			#print ('######################aaaaaaaaaaaaaaaaaa############')
+			#print (sensor_conf)
 
-		for x in sensor_conf:
-			if x != 'update':
-				print('#####update####')
-				print (x)
-				exec('from sensors.'+x+' import '+x+'') 
-				exec("sensor_class['"+x+"'] = "+x+"()")
+			for x in sensor_conf:
+				if x != 'update':
+					#print('#####update####')
+					#print (x)
+					exec('from sensors.'+x+' import '+x+'') 
+					exec("sensor_class['"+x+"'] = "+x+"()")
+					
+			
 		
-		print (sensor_ram)
+		#print (sensor_ram)
 		for x in chips: #intialisre Thread
 			exec('from module.'+chips[x]['ic_class']+' import '+chips[x]['ic_class']+'') 
 			exec("ic_class['"+chips[x]['ic_class']+"'] = "+chips[x]['ic_class']+"()")
@@ -285,11 +299,12 @@ class thread_i2c: #Thread
 			
 			
 			#wenn zeit abgelaufen ist, werden daten von den sensoren geholte und in den bus versand
-			if call.sensor_timer(int(sensor_conf['update'])) == True:
-				data = call.sensor(sensor_conf,sensor_ram,sensor_data_standart,logger)
-				out_data.put(data)
+			if sensor_install == 1:
+				if call.sensor_timer(int(sensor_conf['update'])) == True:
+					data = call.sensor(sensor_conf,sensor_ram,sensor_data_standart,logger)
+					out_data.put(data)
 
-			print ('loop thread i2c '+str(count))
+			#print ('loop thread i2c '+str(count))
 			count = count + 1
 			
 			################### ISS Abfrage Vom Haupt Prozess ANFANG #####################
@@ -311,14 +326,14 @@ class thread_i2c: #Thread
 					out_data.put(new_var)
 					if new_data[x]['target']['name'] in glo_ram['loop']:
 						del glo_ram['loop'][new_data[x]['target']['name']]
-					print('old delte')
+					#print('old delte')
 					
 			for x in glo_ram['loop']: #call Hardware to checkup
 				new_var = call.comparison(glo_ram[x],'',logger)
 				if new_var != {}:
 					out_data.put(new_var)
 			################### ISS Abfrage Vom Haupt Prozess ENDE #####################
-			#print (new_var)
+			##print (new_var)
 			#print(in_data.get())
 			
 			
