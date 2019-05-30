@@ -6,6 +6,8 @@ from collections import defaultdict
 from i2c_thread import thread_i2c, i2c_abruf
 from gpio_thread import thread_gpio, gpio_abruf
 
+from time_managent import time_managent
+
 from TCP_Thread import TCP_run,server_coneckt
 
 from iss_helper import iss_create
@@ -179,9 +181,11 @@ class gpio:
 		iss[iss_id]['update'] = data['update']
 		iss[iss_id]['data'] = data['data']
 		
+		ram['Massage_counter'] = ram['Massage_counter'] + 1 
+		
 		iss[iss_id]['counter'] = ram['Massage_counter'] ######### Hier neu 
 						
-		ram['Massage_counter'] = ram['Massage_counter'] + 1 
+		
 		
 		
 	
@@ -217,6 +221,9 @@ class gpio:
 		config['name'] = ram['gpio'][x]['name']
 		ram['gpio'][x]['queue_in'] = Queue() # Queue erstellen iput from Plugin
 		ram['gpio'][x]['queue_out'] = Queue() # Queue erstellen send data to Plugin 
+		##Host Steering
+		ram['host_steering']['known_threads'][x] = {}
+		ram['host_steering']['known_threads'][x]['queue'] = ram['gpio'][x]['queue_out'] 
 		
 		if x == "i2c":
 			ram['gpio'][x]['prozess'] = Process(target=thread_i2c.run, name=ram['gpio'][x]['name'], args=(config, ram['bus_stack'][x], ram['gpio'][x]['queue_out'], ram['gpio'][x]['queue_in'],logger)) #prozess vorbereiten
@@ -240,19 +247,19 @@ class gpio:
 	def comparison(self): #Call Hardware
 		
 		shadow_copy = iss.copy()
-		print('####abfrage#####')
-		print (shadow_copy)
+		#print('####abfrage#####')
+		#print (shadow_copy)
 		for x in shadow_copy: #is data in ISS to send hardware
 			new_data = ''
-			print ("ja hier daten")
-			print (shadow_copy[x])
+			#print ("ja hier daten")
+			#print (shadow_copy[x])
 			if 'target' in shadow_copy[x]:#Rufe alle verfügbaren Schnitstellen ab
 				for y in ram['gpio']:
 					
 					#daten in thread hoch laden
 					if (shadow_copy[x]['target']['host'] == ic_list['host']) and (shadow_copy[x]['target']['system'] == y):
 						
-						print ('###!!!!!!!#####!!!!!!#####!!!!!#####')
+						#print ('###!!!!!!!#####!!!!!!#####!!!!!#####')
 						ram['gpio'][y]['queue_out'].put(iss[x])
 						del iss[x]
 						
@@ -260,19 +267,28 @@ class gpio:
 		for y in ram['gpio']: #is new data from hardware to send server/plugins
 			new_data = {}
 			while ram['gpio'][y]['queue_in'].qsize() != 0:
-				vari = self.skirmish(5)
-				new_data[vari] = {}
-				new_data[vari] = ram['gpio'][y]['queue_in'].get()
+				
+				data = ram['gpio'][y]['queue_in'].get()
+				if 'global' in data: #abfangen Von steuerung Thread
+					ram['thread_queue'].put(data)
+				else:
+					vari = self.skirmish(10)
+					new_data[vari] = {}
+					new_data[vari] = data
+					
 			if new_data != {}:
 				for o in new_data:
 					for z in new_data[o]:
-						print('§§§§§§§$%$%%%%!!!!!!!!!!!!! hier DATA VON IO')
-						print(new_data[o])
+						#print('§§§§§§§$%$%%%%!!!!!!!!!!!!! hier DATA VON IO')
+						#print(new_data[o])
 						iss[z] = {}
 						iss[z] = new_data[o][z]
 						iss[z]['sender']['host'] = ic_list['host']
 						iss[z]['sender']['zone'] = ic_list['zone']
 						iss[z]['sender']['system'] = y
+						
+						ram['Massage_counter'] = ram['Massage_counter'] + 1
+						iss[z]['counter'] = ram['Massage_counter'] 
 
 
 
@@ -285,12 +301,14 @@ class iot:
 	def update(self):
 		global iss
 		sortiert = self.sorting_iss()#lese daten aus dem ISS 
-		print ('!!!!!!!!!!!!!####sorter######!!!!!!!!!!!!!!!')
-		print (sortiert)
+		#print ('!!!!!!!!!!!!!####sorter######!!!!!!!!!!!!!!!')
+		#print (sortiert)
 		#server =  server_coneckt()
-		logging.error('update')
+		#logging.error('update')
 		loop = 0
+		#print(iss)
 		for x in sortiert:
+			print (x)
 			self.submit_counter = self.submit_counter + 1
 			ram['TCP-SERVER']['data_out'].put(sortiert[x]) 
 			print('HIER HIER HIER')
@@ -298,15 +316,20 @@ class iot:
 		
 		if ram['TCP-SERVER']['data_in'].empty() != True:
 			while ram['TCP-SERVER']['data_in'].qsize() != 0:
-				iss[thread.skirmish('',20)] = ram['TCP-SERVER']['data_in'].get()
-				print ('data in')
+				data = ram['TCP-SERVER']['data_in'].get()
+				if 'global' in data: #abfangen Von steuerung Thread
+					ram['thread_queue'].put(data)
+				else:
+					iss[thread.skirmish('',20)] = data
+					ram['Massage_counter'] = ram['Massage_counter'] + 1
+				#print ('data in')
 			
-		logging.error(json.dumps(iss))
+		#logging.error(json.dumps(iss))
 		update_copy = iss.copy()
 		for x in update_copy: #daten aus dem ISS löschen nach dem sie in Class Thread zum GIR hinzugefügt wurden
-			if 'plugin' in update_copy[x]:
+			if 'plugin' in update_copy[x] and update_copy[x]['send']:
 				#logging.error(json.dumps(iss[x]))
-				print ('del')
+				#print ('del')
 				del iss[x]
 				
 			else:
@@ -318,36 +341,39 @@ class iot:
 		copy_iss = iss.copy()
 		ret = {}
 		for x in copy_iss:
-			if copy_iss[x]['sender']['host'] == ic_list['host'] and copy_iss[x]['sender']['zone'] == ic_list['zone']:
-				if 'update' in copy_iss[x]:
-					print (copy_iss[x])
-					if copy_iss[x]['update']['new'] == 0:
-												
-						if isinstance(copy_iss[x]['data']['id'],int):
-							inttostr = str(copy_iss[x]['data']['id'])
-						else:
-							inttostr = copy_iss[x]['data']['id']
+			
+			if 'send' not in copy_iss[x]:
+				print('yeah')
+				if copy_iss[x]['sender']['host'] == ic_list['host'] and copy_iss[x]['sender']['zone'] == ic_list['zone']:
+					if 'update' in copy_iss[x]:
+						print (copy_iss[x])
+						if copy_iss[x]['update']['new'] == 0:
+													
+							if isinstance(copy_iss[x]['data']['id'],int):
+								inttostr = str(copy_iss[x]['data']['id'])
+							else:
+								inttostr = copy_iss[x]['data']['id']
+								
+							name = ''+inttostr+''+copy_iss[x]['sender']['system']+''+copy_iss[x]['sender']['name']+''
+							if name not in ret:
+								ret[name] = {}
+								ret[name] = copy_iss[x]
 							
-						name = ''+inttostr+''+copy_iss[x]['sender']['system']+''+copy_iss[x]['sender']['name']+''
-						if name not in ret:
+							if ret[name]['counter'] > copy_iss[x]['counter']:
+								ret[name] = copy_iss[x]
+						else:
+							
+							if isinstance(copy_iss[x]['data']['id'],int):
+								inttostr = str(copy_iss[x]['data']['id'])
+							else:
+								inttostr = copy_iss[x]['data']['id']
+								
+							name = ''+inttostr+''+copy_iss[x]['sender']['system']+''+copy_iss[x]['sender']['name']+''
 							ret[name] = {}
 							ret[name] = copy_iss[x]
-						
-						if ret[name]['counter'] > copy_iss[x]['counter']:
-							ret[name] = copy_iss[x]
-					else:
-						
-						if isinstance(copy_iss[x]['data']['id'],int):
-							inttostr = str(copy_iss[x]['data']['id'])
-						else:
-							inttostr = copy_iss[x]['data']['id']
-							
-						name = ''+inttostr+''+copy_iss[x]['sender']['system']+''+copy_iss[x]['sender']['name']+''
-						ret[name] = {}
-						ret[name] = copy_iss[x]
-		
-		logging.error('transfer DATA')			
-		logging.error(json.dumps(ret))
+			iss[x]['send'] = 1
+		#logging.error('transfer DATA')			
+		#logging.error(json.dumps(ret))
 		return(ret)
 		
 class thread: #ausführen von einzelen plugins im hintergrund0
@@ -390,9 +416,9 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 					iss[dataskirmisch]['sender']['system'] = 'plugin'
 					iss[dataskirmisch]['update'] = {}
 					iss[dataskirmisch]['update']['new'] = 1
-					
-					iss[dataskirmisch]['counter'] = ram['Massage_counter'] 
 					ram['Massage_counter'] = ram['Massage_counter'] + 1
+					iss[dataskirmisch]['counter'] = ram['Massage_counter'] 
+					
 					
 					iss[dataskirmisch]['data'] = ausgabe['iss'][a]
 				
@@ -408,11 +434,15 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 		config['host'] = ic_list['host']
 		config['zone'] = ic_list['zone']
 		config['name'] = ram['pluginhold'][name]['name']
+
 		
 		ram['pluginhold'][name]['queue_in'] = Queue() # Queue erstellen iput from Plugin
 		ram['pluginhold'][name]['queue_out'] = Queue() # Queue erstellen send data to Plugin
-		ram['pluginhold'][name]['prozess'] = Process(target=thread_run.run, name=ram['pluginhold'][name]['name'], args=(ram['pluginhold'][name]['queue_out'],ram['pluginhold'][name]['queue_in'],config,girdata,logger)) #prozess vorbereiten
+		ram['pluginhold'][name]['prozess'] = Process(target=thread_run.run, name=ram['pluginhold'][name]['name'], args=(ram['pluginhold'][name]['queue_out'],ram['pluginhold'][name]['queue_in'],config,girdata,logger,name)) #prozess vorbereiten
 		ram['pluginhold'][name]['prozess'].start() # Prozzes starten
+		##Host Steering
+		ram['host_steering']['known_threads'][name] ={}
+		ram['host_steering']['known_threads'][name]['queue'] = ram['pluginhold'][name]['queue_out'] 
 	
 	def comparison(self):
 		for x in ram['pluginhold']:# check theard is alive or restart target prozess
@@ -471,10 +501,13 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 				
 				
 				while ram['pluginhold'][x]['queue_in'].qsize() != 0: #alle verfügabren daten abrufen 
-						print('###########data call###############')
-						data1 = ram['pluginhold'][x]['queue_in'].get()
-						ausgabe[z] = data1
-						z = z + 1
+						#print('###########data call###############')
+						data = ram['pluginhold'][x]['queue_in'].get()
+						if 'global' in data: #abfangen Von steuerung Thread
+							ram['thread_queue'].put(data)
+						else:
+							ausgabe[z] = data
+							z = z + 1
 				
 				if z != 1:
 					for k in ausgabe:
@@ -486,10 +519,11 @@ class thread: #ausführen von einzelen plugins im hintergrund0
 						iss[new_key]['sender']['zone'] = ic_list['zone']
 						iss[new_key]['sender']['name'] = ram['pluginhold'][x]['name']
 						iss[new_key]['sender']['system'] = 'plugin'
-						iss[new_key]['counter'] = ram['Massage_counter'] 
 						ram['Massage_counter'] = ram['Massage_counter'] + 1
-						print ('#########new data################')
-						print (iss[new_key])
+						iss[new_key]['counter'] = ram['Massage_counter'] 
+						
+						#print ('#########new data################')
+						#print (iss[new_key])
 						#print ('new data')
 					#print (array1)
 				##übertragen von daten zum Thread
@@ -609,7 +643,7 @@ class server_coneckt2alt:
 			
 			ret = self.sock2(transfer)
 			#print (ret)
-			logger.error(json.dumps(ret))
+			#logger.error(json.dumps(ret))
 			if 'sesession_id' in ret:
 				
 				ram['sesession_id'] = ret['sesession_id']
@@ -734,9 +768,7 @@ def ms_time(select): #return 0 ms 1 Second 2 array with both
 	else:
 		return ({0:now.microsecond,1:now.second})
 
-'''
-hier fängt die deamon schleife an 
-'''
+
 class tcp_control:
 	
 	def __init__(self):
@@ -746,6 +778,9 @@ class tcp_control:
 		ram['TCP-SERVER']['data_in'] = Queue() ### Vom server
 		ram['TCP-SERVER']['session_id'] = ic_list #erstmal mit standart server daten später dann nur noch Session ID 
 		ram['TCP-SERVER']['thread'] = ''
+		#Host Steering
+		ram['host_steering']['known_threads']['TCP_thread'] ={}
+		ram['host_steering']['known_threads']['TCP_thread']['queue'] = ram['TCP-SERVER']['data_out']
 		
 		TCP_data = TCP_run.start(HOST, PORT,ic_list,logger)
 		self.token = TCP_data
@@ -768,36 +803,37 @@ class tcp_control:
 		ram['TCP-SERVER']['thread'].start() # Prozzes starten
 	
 	
-
+'''
+hier fängt die deamon schleife an 
+'''
 def main_loop():
 	loopmaster = 0 #Counter wie oft Schleife gelaufen ist (für debug wichtig)
 	ram['kill'] = 0
 	ram['Massage_counter'] = 0 #Massage counter
 	ram['iss_trasher'] = {} #Trasher variable
+	ram['thread_queue'] = Queue()
+	
+	ram['host_steering'] = {}
+	ram['host_steering']['now'] = ms_time(2)
+	ram['host_steering']['iss_count'] = 0
+	ram['host_steering']['known_threads'] = {}
+	ram['host_steering']['wake_count'] = 0
+	ram['host_steering']['Global-E-Save'] = 0
+	ram['host_steering']['now'] = ms_time(2)
+	ram['host_steering']['time'] = {}
+	coun = 0	
+	while coun < 59: #erzeuge minuten array
+		ram['host_steering']['time'][coun] = 0
+		coun +=1
+	
 	run = 0 # variable für Gelaufne zeit
 
 	freq = 20 #Aktuelle geschwindkeit
 	loop_server_call = 0 # start parameter für interne Serverabfrage
-
+	print('server verbindung aufbauen')
 	tcp = tcp_control()
 	tcp.start()
-	
-	#time.sleep(5)
-	#ram['TCP-SERVER']['data_out'].put('aaaaa')
-	#ram['TCP-SERVER']['data_out'].put('bbbbb')
-	
-	
-	
-	
-	##das hier kann weg
-	#print('Server Initalisiern')
-	#socket_call = server_coneckt()#Server verbindung starten
-	#socket_call.check()
-	#print('Server Initalisiern ende')
-	#logger.error('server initalisiert')
-	##/das hier kann weg ende
-	
-	
+
 	print('thearad Initalisiern')
 	plugin_obj = thread()
 	print('thearad Initalisiern ende')
@@ -810,36 +846,100 @@ def main_loop():
 	
 	iot_obj = iot()
 	logger.error('iot  initalisiert')
-
-	print('Starten While schleife ')
-	'''
-	iot_obj.update()
+	iot_obj.update() #start sy
 	
-	time.sleep(5)
+	####
+	time.sleep(0.2)
 	iot_obj.update()
-	time.sleep(2)
+	time.sleep(0.2)
 	plugin_obj.comparison()
-	time.sleep(2)
-	'''
+	time.sleep(0.2)
+	a = time_managent() #start
+	a.set_freq(freq)
+	print('Starten While schleife ')
+	
 	while True:
+		
+		if ram['thread_queue'].empty() != True: #auswertung aller Threads
+					
+			
+			while ram['thread_queue'].qsize() != 0: #alle verfügabren daten abrufen 
+				data = {}
+				data = ram['thread_queue'].get()
+				print (data)
+				ram['host_steering']['known_threads'][data['name']][data['global']] = data['value'] 
+
+		copy_shadow = ram['host_steering']['known_threads'].copy()
+		for x in copy_shadow: #abfrage ob Client Thread Data benötigt 
+			#print (ram['host_steering'])
+			#print(x)
+			#ram['host_steering']['known_threads']['TCP_thread']['queue'].put({'global':'freq','value':'12'})	
+			if 'data' in ram['host_steering']['known_threads'][x]:
+				if 'Time_slot' in ram:
+					
+					print('hier mit timeslot')
+					#time_slot = {"1": '0', "lenght": '166', "2": '166', "6": '830', "5": '664', "3": '332', "4": '498'}
+					ram['host_steering']['known_threads'][x]['queue'].put({'global':'ts','value':ram['Time_slot']})	
+					del ram['host_steering']['known_threads'][x]['data']
+				else:
+					print('hier ohne timeslot')
+					ram['host_steering']['known_threads'][x]['queue'].put({'global':'ts','value':''})	
+					del ram['host_steering']['known_threads'][x]['data']
+					
+			
+		#print(ms_time(2))
+		#print (data)
+		ram['host_steering']['wake_count'] = 0
+		for x in ram['host_steering']['known_threads']: #abfrage ob Erwachte clients da sind
+			if 'wake' in ram['host_steering']['known_threads'][x]:
+				ram['host_steering']['wake_count'] += 1
+				
+		
+		if ram['host_steering']['wake_count'] > 2: #sind mehr als 2 threads aktiv 
+			if ram['host_steering']['Global-E-Save'] == 1: #wenn E-Save aktiv ist wieder deaktiviern 
+				for x in ram['host_steering']['known_threads']:
+					ram['host_steering']['known_threads'][x]['queue'].put({'global':'e-save','value':'0'})
+		
+		if 	ram['host_steering']['now'] != ms_time(2):
+			ram['host_steering']['now'] = ms_time(2)
+			
+			last = ram['Massage_counter'] - ram['host_steering']['iss_count']
+			
+			if ms_time(2) == 0 :
+				ram['host_steering']['time'][59] = last
+			else:
+				ram['host_steering']['time'][(ms_time(2)-1)] = last 
+			
+			ram['Massage_counter'] 
+			
+			if last < 10:
+				for x in ram['host_steering']['known_threads']:
+					ram['host_steering']['Global-E-Save'] = 1
+					ram['host_steering']['known_threads'][x]['queue'].put({'global':'e-save','value':'1'})
+					ram['host_steering']['known_threads'][x]['queue'].put({'global':'freq','value':'6'})
+			elif last > 10 and last < 20:
+				ram['host_steering']['known_threads'][x]['queue'].put({'global':'freq','value':'16'})
+				
+			else:
+				ram['host_steering']['known_threads'][x]['queue'].put({'global':'freq','value':'25'})
+				ram['host_steering']['known_threads'][x]['queue'].put({'global':'e-save','value':'0'})
+		
+
+		
+		##########!!!!!!!!!!!!!!!
+		#ram[thread_ram][name][typ] = value
+		#ram[thread_ram][name][wake] = 0/1 mehr als 2 E aufhaben 
+		#
+		##########!!!!!!!!!!!!!!!
+		
+
 		iss_copy = iss.copy()
-		for x in iss_copy:
+		for x in iss_copy:#abfrage ob daten vom Server gekommen sind 
 			if 'target' in iss_copy[x]:
 				if iss_copy[x]['target']['system'] == 'system':
 					ram[iss[x]['data']['id']] = iss[x]['data']['value']
 					del iss[x]
-		'''		
-		plugin_obj.end()
-		gpio_handler.end()
-		tcp.kill()
-		print('#########RAM###########')
-		print (ram)
-		print('#########gir###########')
-		print (gir)
-		print('#########iss###########')
-		print(iss)
-		break
-		'''
+
 		########### Loop Time Management head #############
 		start = ms_time(0)
 		print (start)
@@ -856,6 +956,9 @@ def main_loop():
 		
 		################### GPIO Call END ###################
 		
+		################### IoT transfer ###################	
+		iot_obj.update()
+		################### IoT Transfer ###################
 		
 
 		################### Plugin Call ###################
@@ -866,6 +969,7 @@ def main_loop():
 		################### Plugin Call END ###################
 		
 		################### Servercall ###################
+		'''
 		ministart = ms_time(0)
 		if loop_server_call == 0 and ms_time(0) < 500000:
 			logger.error('checker halb')
@@ -879,7 +983,7 @@ def main_loop():
 			loop_server_call = 0
 			#socket_call.check()
 			#print (ms_time(0) - ministart )
-			
+		'''	
 		
 		################### ServerCall End ###################
 
@@ -891,7 +995,7 @@ def main_loop():
 				if ram['iss_trasher'][x]['time'] != ms_time(1):
 					if ram['iss_trasher'][x]['count'] <= 2:
 						logger.error('ISS verworfen:')
-						logging.error(json.dumps(iss[x]))
+						logger.error(json.dumps(iss[x]))
 						del iss[x]
 						del ram['iss_trasher'][x]
 					else:
@@ -932,50 +1036,32 @@ def main_loop():
 			ram['proto'] = {}
 			
 			ram['proto']['sec'] = ms_time(1)
+		
+		if loopmaster == 20:
+			
+			testersa = {'funktion':'iot','iotfunk':'Kill_client','zone':ic_list['zone'] ,'host':ic_list['host'], 'kill':'1'}
+			antwort = server_coneckt2alt.sock2('',testersa)
 		'''	
-		
-		
 		################### prototypinm END ###################	
 		
-		################### IoT transfer ###################	
-		iot_obj.update()
-		################### IoT Transfer ###################	
+	
 		
 		########### Loop Time Management foot #############
-		stop = ms_time(0)
-		run = stop - start
-		
-		if run < 0: #start Stop Between zwo seconds 
-			run2 = 1000000 - start
-			run = run2 + stop
-	
-		waiter = round(1000000 / freq)# getting max time 
-
-		wait = waiter - run 
-		
-		if wait < 0: #when time is out setting Sleep to 0 
-			wait = 0
-		
-		speed = wait / 1000000 #ermittel Float
-		print ('speed')
-		print (speed)
-		time.sleep(speed)
+		error = a.pause()
+			
+		if 'timeslot' in error:
+			#print('no time slot')
+			if 'Time_slot' in ram:
+				a.add_timeslot(ram['Time_slot'])
+			
 		
 		########### Loop Time Management Foot #############
 		
-		if ram['kill'] == 1: ### Normal Programm end
+		if ram['kill'] == '1': ### Normal Programm end
 			logger.error('kill signal')
 			plugin_obj.end()
 			gpio_handler.end()
 			tcp.kill()
-			logging.error('######## RAM #########')
-			#logging.error(json.dumps(ram))
-			logging.error('######## GIR #########')
-			logging.error(json.dumps(gir))
-			logging.error('######## ISS #########')
-			logging.error(json.dumps(iss))
-			
-			
 			logger.error('programm wurde beendet')
 			time.sleep(1)
 			break
@@ -1036,26 +1122,21 @@ if len(sys.argv) != 1:
 			main_loop()
 	elif 'stop' == sys.argv[1]:
 		print ("stopping Client")
-		testersa = {'funktion':'stop','zone':ic_list['zone'] ,'host':ic_list['host'], 'kill':'1'}
+		testersa = {'funktion':'iot','iotfunk':'Kill_client','zone':ic_list['zone'] ,'host':ic_list['host'], 'kill':'1'}
 			
-		antwort = server_coneckt.sock2('',testersa)
+		antwort = ''
 		while True:
-			testersa = {'funktion':'stop','zone':ic_list['zone'] ,'host':ic_list['host']}
-			antwort = server_coneckt.sock2('',testersa)
-			time.sleep(1)
-			if antwort == 'kill':
+			antwort = server_coneckt2alt.sock2('',testersa)
+			time.sleep(0.02)
+			if antwort != '':
 				
 				print('client stopped')
-				break 
-		'''	
-		pidfile = open(workingpath+'/'+pidfilename, 'r') #pid File suchen
-		line = pidfile.readline().strip()#daten lesen
-		pidfile.close()
-		#print(line); #nummer ausgabe
-		pid = int(line) #zur int umwandelkn
-		os.kill(pid, signal.SIGKILL) #PID kill
-		os.remove(workingpath+'/'+pidfilename) #alte PID löschen
-		print ('Client Closed')'''
+				print (antwort)
+				break
+			else:
+				print ('run')
+				#break
+
 	elif 'restart' == sys.argv[1]:
 		print ("lala") ##noch nichts geplant
 	elif 'singledebug' == sys.argv[1]:
@@ -1068,7 +1149,7 @@ if len(sys.argv) != 1:
 			main_loop()	
 	
 	elif 'help' == sys.argv[1]:
-		print ('start|stop|add|get|end')
+		print ("usage: %s start|stop|restart|singledebug|loopcountdebug(anzahl)") 
 	else:
 		print ("Unknown command")
 		sys.exit(2)

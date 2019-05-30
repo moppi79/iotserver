@@ -8,7 +8,11 @@ class time_managent ():
 	def __init__(self):
 		self.counter_plus = 0
 		
-		self.freq = 9 #schaf bare aktualisirungen pro sekunde minimumist 6
+		self.engerie_save = 0
+		
+		self.engerie_save1 = 0
+		
+		self.freq = 6 #schaf bare aktualisirungen pro sekunde minimumist 6
 		
 		self.wait = 1
 		
@@ -47,16 +51,17 @@ class time_managent ():
 		print(self.runtime)
 		print(time_ms)
 	
-	def time_calc(self):
+	def time_calc(self): #errechnen der standart variablen
 		
 		if self.ts != {}:
 			#tn = self.ms_time()
-			self.count_per_ts = round(self.freq / 6)
-			self.max_lenght = round((self.ts['lenght'] *6) /self.freq)
-			self.runtime_ts = (self.ts['lenght'] *6) / (self.count_per_ts*6)
-			self.frq_overhead_value = self.max_lenght-self.runtime_ts 
+			self.count_per_ts = round(self.freq / 6) #maximale anzahl abdfragen pro Timeslot
+			self.max_lenght = round((self.ts['lenght'] *6) /self.freq) #maximale lenge Timesolt
+			self.runtime_ts = (self.ts['lenght'] *6) / (self.count_per_ts*6)#laufzeit von einer abfrage
+			self.frq_overhead_value = self.max_lenght-self.runtime_ts #standart Overhead pro abfrage
+			
 
-	def add_timeslot (self,new_ts):
+	def add_timeslot (self,new_ts):#wenn neuer Tineslot gekommen ist 
 		
 		self.ts = {}
 		
@@ -68,11 +73,11 @@ class time_managent ():
 				
 		self.time_calc()
 	
-	def second_func(self):
+	def second_func(self):#ausgabe Sekunde
 		now = datetime.datetime.now()
 		return (now.second)
 	
-	def ms_time(self): #return 0 ms 1 Second 2 array with both
+	def ms_time(self): #ausgabe Ms in maximal 3 stellig
 		now = datetime.datetime.now()
 		timestr = str(now.microsecond)
 
@@ -87,15 +92,18 @@ class time_managent ():
 		
 		return (int(timestring2[0:3]))
 
-	
-	def set_freq (self,new_freq):
+	def set_e_save (self,var):#set 2 hz 0/1
 		
-		self.freq = new_freq
+		self.engerie_save = int(var)
+	
+	def set_freq (self,new_freq):#set freq
+		
+		self.freq = int(new_freq)
 		
 		if self.ts != {}:
 			self.time_calc()
 		
-	def runtime_calc(self):
+	def runtime_calc(self):#runtime calc. 
 		
 		self.loops = self.loops +1
 		
@@ -106,15 +114,23 @@ class time_managent ():
 		self.aprox['time'] = self.aprox['time'] + self.runtime
 		self.aprox['aprox'] = round(self.aprox['time']/self.loops)
 
-	def pause(self):
+	def pause(self):#haupt stück
 		error={}
-		if self.ts != {}:
+		if self.ts != {}:#wenn kein Timeslot vorhanden ist
 			
-			while self.wait == 1:
+			while self.wait == 1:#start pause. erster abruf
 				if self.second != self.second_func():
 					self.wait = 0
 					self.start = self.ms_time()
+			
+			if self.engerie_save == 1:
 				
+				if self.engerie_save1 == 1:
+					self.engerie_save1 = 0
+					time.sleep(0.4)
+				else: 
+					self.engerie_save1 = 1
+					time.sleep(0.4)
 			
 			self.stop = self.ms_time() #ermittelen laufzeit scrip
 			if self.second != self.second_func():
@@ -131,22 +147,22 @@ class time_managent ():
 			
 			self.runtime_calc()
 
-			if self.frq_overhead >= self.max_lenght:
-				print ('abzug')
+			if self.frq_overhead >= self.max_lenght:#pausiern
+
 				self.count_per_ts_loop = self.count_per_ts_loop + 1
 				self.frq_overhead = self.frq_overhead - self.max_lenght
-				print(self.max_lenght/1000)
+
 				time.sleep(self.max_lenght/1000)
 			
-			if self.count_per_ts_loop <= self.count_per_ts:
-				#print ('if')
+			if self.count_per_ts_loop <= self.count_per_ts:#counting overhead
+
 				self.count_per_ts_loop = self.count_per_ts_loop + 1
 				self.frq_overhead = self.frq_overhead + self.frq_overhead_value
 
 			else:
 				self.counter_plus = 1
 			
-			print ('self.count_per_ts_zeiger: {}'.format(self.count_per_ts_zeiger))
+			#print ('self.count_per_ts_zeiger: {}'.format(self.count_per_ts_zeiger))
 			stop = self.runtime_ts - self.aprox['aprox']
 			
 						
@@ -181,7 +197,7 @@ class time_managent ():
 			if stop < 0: #wenn anderer zeit block ist 
 				stop = (1000 - now)/1000 
 				
-			print('stop: {}'.format(stop))
+			#print('stop: {}'.format(stop))
 			time.sleep(stop) 
 			
 			self.start = self.ms_time() #ermittelen laufzeit scrip
@@ -194,7 +210,7 @@ class time_managent ():
 			return(error)
 		
 		
-
+'''
 loop = 0
 
 
@@ -203,19 +219,29 @@ a = time_managent()
 #time_slot = {"1": '0', "lenght": '166', "2": '166', "6": '830', "5": '664', "3": '332', "4": '498'}
 time_slot = {"1": '0', "lenght": '166', "2": '166', "6": '830', "5": '664', "3": '332', "4": '498'}
 
-
+a.set_freq('6')
 a.add_timeslot(time_slot)
 
+a.set_e_save(0)
+sec = a.second_func()
 while True:
 	#break
 	
-	
+	if a.second_func() != sec:
+		sec = a.second_func()
+		a.set_freq(random.randrange(6, 50))
+		
+		if random.randrange(1, 9) == 4:
+			a.set_e_save(1)
+		else:
+			a.set_e_save(1)
+		
 	error = a.pause()
 	if error != {}:
 		print (error)
 	loop = loop + 1 
-	time.sleep(random.randrange(10, 20)/1000)
+	time.sleep(random.randrange(4, 7)/1000)
 	print (loop)
-	if (loop >= 100):
+	if (loop >= 10):
 		break
-	
+'''

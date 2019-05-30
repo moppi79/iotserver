@@ -209,9 +209,30 @@ class iot():#alle Iot abfragen werden abgehandelt.
 	def Kill_client(self,data):# erzeugt ein iss packet zum shutdown eines clients
 		#erwarte CLient,ERzeige massege zum kill
 		#via Message System
-		#cha.target('client','none','run','system') VAR KILL 
+		#cha.target('client','none','run','system') VAR KILL
+		token_client = ''
+		for x in iot_token:
+			if iot_token[x]['typ'] == 'client':
+				if data['host'] == iot_token[x]['host'] and data['zone'] == iot_token[x]['zone']: 
+					token_client = x
 		
-		logging.error('Sende Kill data')
+		if token_client != '':	
+			token = self.new_slot({'count':'1'})
+			server_name = config['SERVER']['Name']
+			cha = iss_create()
+			#logging.error(server_name)
+			cha.sender(server_name,'none','kill','system')
+			cha.target(data['host'],data['zone'],'kill','system')
+			mess = {}
+			#mess[token] = cha.install_data('kill','1','int')
+			iss_stack[token[1]][token_client] = {}
+			iss_stack[token[1]][token_client] = cha.install_data('kill','1','int')
+			
+			ret='Killed'
+			logging.error('Sende Kill data')
+		else:
+			ret= 'Nicht vorhanden'
+		return(ret)
 	
 	def new_slot(self,data):#returns a new token for web client/ client_server, reserves a new space on ram. need ['count'] 
 		
@@ -239,19 +260,19 @@ class iot():#alle Iot abfragen werden abgehandelt.
 				logging.error('delete key:{}'.format(x))
 			
 	def iss (self,data): #need data['messages']['token'](token was comes from new_slot) and data['token'] (server/webclient token) returns new massages
-		logging.error('iss install')
-		logging.error(json.dumps(data))
+		#logging.error('iss install')
+		#logging.error(json.dumps(data))
 		if data['messages'] != '' and data['token'] in iot_token:
 			shadow = data['messages'].copy()
-			logging.error(json.dumps(data))
-			logging.error(json.dumps(iss_stack))
+			#logging.error(json.dumps(data))
+			#logging.error(json.dumps(iss_stack))
 			for x in shadow: #all submitet ISS-Messages from Client (to store in iss_stack)
-				logging.error('x:{}'.format(x))
+				#logging.error('x:{}'.format(x))
 				for y in iot_token: #client list 
-					logging.error('y:{}'.format(y))
+					#logging.error('y:{}'.format(y))
 					
 					if 'target' in data['messages'][x]: #when data is targeted a single client
-						logging.error('target')
+						#logging.error('target')
 						if iot_token[y]['host'] == data['messages'][x]['target']['host'] and iot_token[y]['zone'] == data['messages'][x]['target']['zone']:
 							iss_stack[x][y] = {}
 							iss_stack[x][y] = data['messages'][x]
@@ -260,30 +281,30 @@ class iot():#alle Iot abfragen werden abgehandelt.
 							#logging.error('Message')
 							#logging.error(json.dumps(data))
 					else: #to all clients
-						logging.error('else')
+						#logging.error('else')
 						if data['messages'][x]['update']['new'] == 1: #when iss messages installes a new service
-							logging.error('update new data')
+							#logging.error('update new data')
 							iss_stack[x][y] = {}
 							iss_stack[x][y] = data['messages'][x]
 							iss_install[x] = {}
 							iss_install[x] = data['messages'][x]
 						else: ## standart ISS Update message
-							logging.error('update')
+							#logging.error('update')
 							#logging.error(json.dumps(data))
 							#logging.error(json.dumps(iss_install))
 							iss_stack[x][y] = {}
 							iss_stack[x][y] = data['messages'][x]
 							
-							logging.error(json.dumps(iss_stack))
+							#logging.error(json.dumps(iss_stack))
 							iss_shadow = iss_install.copy()
 							for z in iss_shadow: #data override in install massesages with actual data
-								logging.error('z:{}'.format(z))
-								logging.error('y:{}'.format(y))
-								logging.error('x:{}'.format(x))
-								logging.error(json.dumps(data['messages'][x]))
-								logging.error(json.dumps(iss_shadow[z]))
+								#logging.error('z:{}'.format(z))
+								#logging.error('y:{}'.format(y))
+								#logging.error('x:{}'.format(x))
+								#logging.error(json.dumps(data['messages'][x]))
+								#logging.error(json.dumps(iss_shadow[z]))
 								if iss_shadow[z]['sender']['host'] == data['messages'][x]['sender']['host'] and iss_shadow[z]['sender']['zone'] == data['messages'][x]['sender']['zone'] and iss_shadow[z]['sender']['name'] == data['messages'][x]['sender']['name'] and iss_shadow[z]['data']['id'] == data['messages'][x]['data']['id']:
-									logging.error(json.dumps('vorhandxen'))
+									#logging.error(json.dumps('vorhandxen'))
 									if data['messages'][x]['sender']['name'] == 'sensor':
 										iss_install[z]['data'] = data['messages'][x]['data']
 									else:
@@ -301,15 +322,15 @@ class iot():#alle Iot abfragen werden abgehandelt.
 		
 		logging.error('done while')
 		ret = {}
-		logging.error(json.dumps(iss_stack))
-		logging.error(json.dumps(iot_token))
-		logging.error(json.dumps(data['token']))
+		#logging.error(json.dumps(iss_stack))
+		#logging.error(json.dumps(iot_token))
+		#logging.error(json.dumps(data['token']))
 		iss_shadow = iss_stack.copy()
-		logging.error('asdaasdsa')
+		#logging.error('asdaasdsa')
 		if data['token'] in iot_token:
 	
 			for x in iss_shadow: #return all data to client, and delete
-				logging.error(x)
+				#logging.error(x)
 				#logging.error('Token')
 				#logging.error(data['token'])
 				if data['token'] in iss_stack[x]:
@@ -356,6 +377,8 @@ class iot():#alle Iot abfragen werden abgehandelt.
 		ret['session_id'] = token
 		ret['iss_install'] = {}
 		ret['iss_install'] = iss_install
+		logging.error(json.dumps('ret'))
+		logging.error(json.dumps(ret))
 		
 		return(ret)
 
@@ -492,17 +515,19 @@ class server(): # server standart Classe
 		slot_count = 6 #slots per second
 		#logging.error(json.dumps('first'))
 		for x in iot_token: #count clients 
-			if iot_token[x]['host'] not in coun_clint:
-				coun_clint[iot_token[x]['host']] = 1
-				new_ts[iot_token[x]['host']] = {}
-				new_ts[iot_token[x]['host']][iot_token[x]['zone']] = {}
-				new_ts[iot_token[x]['host']][iot_token[x]['zone']]['count'] = 1
-				new_ts[iot_token[x]['host']][iot_token[x]['zone']]['token'] = x
-			else:
-				coun_clint[iot_token[x]['host']] = coun_clint[iot_token[x]['host']]  + 1
-				new_ts[iot_token[x]['host']][iot_token[x]['zone']]['count'] = coun_clint[iot_token[x]['host']]
-				new_ts[iot_token[x]['host']][iot_token[x]['zone']]['token'] = x
-	
+			#iot_token[sesession_id]['typ'] = 
+			if iot_token[x]['typ'] == 'client':
+				if iot_token[x]['host'] not in coun_clint:
+					coun_clint[iot_token[x]['host']] = 1
+					new_ts[iot_token[x]['host']] = {}
+					new_ts[iot_token[x]['host']][iot_token[x]['zone']] = {}
+					new_ts[iot_token[x]['host']][iot_token[x]['zone']]['count'] = 1
+					new_ts[iot_token[x]['host']][iot_token[x]['zone']]['token'] = x
+				else:
+					coun_clint[iot_token[x]['host']] = coun_clint[iot_token[x]['host']]  + 1
+					new_ts[iot_token[x]['host']][iot_token[x]['zone']]['count'] = coun_clint[iot_token[x]['host']]
+					new_ts[iot_token[x]['host']][iot_token[x]['zone']]['token'] = x
+		
 		ts_slots = {} #time-slots
 		#logging.error(json.dumps('second'))
 		for x in coun_clint: #create Time slots
@@ -594,7 +619,7 @@ class server(): # server standart Classe
 				#in refernz datenbank ablegen (durchsuchbar)
 				iot_token[sesession_id]['host'] = umwandel['host']
 				iot_token[sesession_id]['zone'] = umwandel['zone']
-				iot_token[sesession_id]['typ'] = 'server'
+				iot_token[sesession_id]['typ'] = 'client'
 				iot_token[sesession_id]['time'] = iot.time('','get')
 				
 				self.time_slot()
@@ -892,8 +917,8 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler): #In comeing TC
 				logging.debug('Obtain slot: {}, thread: {}'.format(loop_count,cur_thread.name))
 				TCP2Server_queue_stack[loop_count]['lock'].put(cur_thread.name)
 				TCP2Server_queue_stack[loop_count]['ready'].put(cur_thread.name)
-				print (loop_count)
-				print (cur_thread.name)
+				#print (loop_count)
+				#print (cur_thread.name)
 				own_slot = loop_count
 				anwser == 1
 				exit = 1

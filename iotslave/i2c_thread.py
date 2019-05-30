@@ -1,6 +1,6 @@
 import daemon, os, time, sys, signal, lockfile, socket, logging, datetime, json, random, configparser, fileinput
 from multiprocessing import Process, Queue
-
+from time_managent import time_managent
 
 ic_class = {}
 
@@ -144,13 +144,7 @@ class i2c_abruf:
 		'''
 		
 	def sensor (self,sensor_conf,sensor_ram,iss_data,logger):
-		#print ('sensor aa')
-		#print (sensor_ram)
-		#print ('sensor bb')
-		#print  (sensor_conf)
-		#print ('sensor cc')
-		#print ('iss data')
-		#print (iss_data)
+
 		data = {}
 		
 		#return({1:2})
@@ -164,16 +158,7 @@ class i2c_abruf:
 			#data_insert = {}
 			#data_insert = iss_data[x]
 			for z in data[x]:
-				#print ('z')
-				#print (z)
-				#print ('data_insert')
-				#print (data_insert)
-				#print ('data_x_z')
-				#print (data[x][z] )
-				#data_insert[z]['value'] = data[x][z] 
-			
-			#print (data_insert)
-							
+
 				new_iss_number = skirmish(30)
 				ret[new_iss_number] = {}
 				ret[new_iss_number]['sender'] = {}
@@ -249,7 +234,7 @@ def skirmish(length): #zufallsgenerator
 			
 class thread_i2c: #Thread 
 	
-	def run(system,chips,in_data,out_data,logger):
+	def run(system,chips,data_in,data_out,logger):
 		
 		count = 1
 		#print (chips)
@@ -294,6 +279,20 @@ class thread_i2c: #Thread
 		for x in chips:
 			
 			chipname_list[x] = {}
+			
+		##time management
+		a = time_managent()
+		counter_time = 0 #countes aktitäten
+		time_vars = {}
+		time_vars['ts'] = ''
+		time_vars['freq'] = 6
+		time_vars['wake'] = 1
+		time_vars['e-save'] = 0
+		
+		time_vars_copy = time_vars.copy()
+		thread_name = 'i2c'
+		data_out.put({'global':'wake','value':'1','name':thread_name})#set your name 
+		##time management
 
 		while True: #Haupt schleife
 			
@@ -302,7 +301,7 @@ class thread_i2c: #Thread
 			if sensor_install == 1:
 				if call.sensor_timer(int(sensor_conf['update'])) == True:
 					data = call.sensor(sensor_conf,sensor_ram,sensor_data_standart,logger)
-					out_data.put(data)
+					data_out.put(data)
 
 			#print ('loop thread i2c '+str(count))
 			count = count + 1
@@ -310,20 +309,31 @@ class thread_i2c: #Thread
 			################### ISS Abfrage Vom Haupt Prozess ANFANG #####################
 
 			glo_ram['loop'] = chipname_list
-			new_data = ''
-			while in_data.qsize() != 0: #new data from Server/plugin
-				vardd = skirmish(10)
+			#new_data = ''
+			new_data = {}
+			while data_in.qsize() != 0: #new data from Server/plugin
+				data1 = data_in.get()
+				if 'global' in data1:#host in data
+					#print(data1)
+					#print ('#############data in i2c ############')
+					#print(data1)
+					time_vars[data1['global']] = data1['value']
+						
+						
+					##time management
+				else:#standart ISS
 				
-				new_data = {}
-				new_data[vardd] = {}
-				new_data[vardd] = in_data.get()
+					vardd = skirmish(10)
+					new_data[vardd] = {}
+					new_data[vardd] = data1
 			
 			new_var = ''
-			if new_data != '': #send data to Hardware
+			if new_data != {}: #send data to Hardware
 				shadow_copy = new_data.copy()
 				for x in shadow_copy:
+					counter_time += 1 #time counter
 					new_var = call.comparison(glo_ram[new_data[x]['target']['name']],new_data[x],logger)
-					out_data.put(new_var)
+					data_out.put(new_var)
 					if new_data[x]['target']['name'] in glo_ram['loop']:
 						del glo_ram['loop'][new_data[x]['target']['name']]
 					#print('old delte')
@@ -331,14 +341,63 @@ class thread_i2c: #Thread
 			for x in glo_ram['loop']: #call Hardware to checkup
 				new_var = call.comparison(glo_ram[x],'',logger)
 				if new_var != {}:
-					out_data.put(new_var)
+					counter_time += 1 # counter aktivität
+					data_out.put(new_var)
 			################### ISS Abfrage Vom Haupt Prozess ENDE #####################
 			##print (new_var)
-			#print(in_data.get())
+			#print(data_in.get())
 			
 			
-			time.sleep(1.1)
-			if count == 100:
-				break
+			######## System Timer  ENDE #######	
+			####!!!!!!!!!!!!!!
+			# immer durch rechenen ob der E mode deakjtivert werdenb muss 
+			# dann schickt er message an host das er alle auf wecken muss 
+			# selbst kann er das E auf heben für ein ppaar durch gänge und dann wieder E
+			#####!!!!!!!!!!!!!!
+			if counter_time >=2 :#wake up
+				if time_vars['wake'] != 1:
+					time_vars['wake'] = 1
+					data_out.put({'global':'wake','value':1,'name':thread_name})
+					a.set_e_save(0)
+				counter_time -= 1
+			else:
+				if time_vars['wake'] == 1:#Sleep now
+					time_vars['wake'] = 0
+					data_out.put({'global':'wake','value':0,'name':thread_name})
+					if time_vars['e-save'] == 1:
+						a.set_e_save(1)
+			
+			counter_time -= 1
+			if time_vars['ts'] == '':
+				data_out.put({'global':'data','value':'need','name':thread_name})
+			
+			if time_vars['freq'] != time_vars_copy['freq']:
+				a.set_freq(time_vars['freq'])
+				time_vars_copy['freq'] = time_vars['freq']
+				data_out.put({'global':'freq','value':time_vars['freq'],'name':thread_name})
+			
+			if time_vars['e-save'] != time_vars_copy['e-save']:
+				#self.engerie_saveprint('ESAVE VARIABLE: {}'.format(time_vars['e-save']))
+				a.set_e_save(time_vars['e-save'])
+				time_vars_copy['e-save'] = time_vars['e-save']
+				data_out.put({'global':'e-save','value':time_vars['e-save'],'name':thread_name})
+			
+			
+			error = a.pause()
+			
+			if 'timeslot' in error:
+				print('aaaaaa')
+				a.set_freq(time_vars['freq'])
+				a.add_timeslot(time_vars['ts'])
+			
+			if counter_time > 0 :
+				counter_time = 0
+				
+			######## System Timer  ENDE #######	
+			
+			#time.sleep(1.1)
+			
+			#if count == 100:
+			#	break
 			
 	

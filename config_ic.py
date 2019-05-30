@@ -14,10 +14,8 @@ werden alle daten aus dem ram gezogen
 '''
 ic_chip[1] ={'icname':'mcp23017',
 			'ic_class':'mcp23017',
-<<<<<<< HEAD
 			'bus':'i2c',
-=======
->>>>>>> refs/remotes/origin/master
+
 			'adresse':0x20,
 			'num':7,#anzahl ports
 			'bank':2,#anzahl banken
@@ -39,10 +37,8 @@ ic_chip[1] ={'icname':'mcp23017',
 
 ic_chip[2] ={'icname':'schreibtisch_display',
 			'ic_class':'pcf8574',
-<<<<<<< HEAD
 			'bus':'i2c',
-=======
->>>>>>> refs/remotes/origin/master
+
 			'display_name':'schreibisch_display',
 			'display_typ':'text', 
 			'adress':0x27,
@@ -56,12 +52,11 @@ ic_chip[2] ={'icname':'schreibtisch_display',
 '''
 
 ic_chip[1] ={'icname':'demoic',
-<<<<<<< HEAD
 			'ic_class':'demoic',
 			'bus':'i2c',
 			'data':{'test':3}
 }
-'''
+
 ic_chip[2] ={'icname':'demoic2',
 			'ic_class':'demoic',
 			'bus':'i2c',
@@ -70,9 +65,9 @@ ic_chip[2] ={'icname':'demoic2',
 
 ic_chip[3] ={'icname':'Schalter 0',
 			'bus':'gpio',
-			'data':{'id':12,'typ':'in','test':5}
+			'data':{'id':6,'typ':'in','test':5} ###achtung ID geändert !!! nicht die ausklammuergn entfernene
 }
-
+'''
 ic_chip[4] ={'icname':'Schalter 1 up',
 			'bus':'gpio',
 			'data':{'id':5,'typ':'in_up','test':5}
@@ -82,13 +77,13 @@ ic_chip[5] ={'icname':'Schalter 2 down',
 			'bus':'gpio',
 			'data':{'id':6,'typ':'in_down','test':5}
 }
-
+'''
 
 ic_chip[6] ={'icname':'LED statisch',
 			'bus':'gpio',
-			'data':{'id':13,'typ':'out','value':1}
+			'data':{'id':5,'typ':'out','value':1}###achtung ID geändert !!! nicht die ausklammuergn entfernene
 }
-
+'''
 ic_chip[7] ={'icname':'LED PWM',
 			'bus':'gpio',
 			'data':{'id':19,'value':100,'typ':'pwm',
@@ -102,7 +97,7 @@ ic_chip[8] ={'icname':'demomod',
 			'data':{'id':88,'typ':'demo','mod':'1'
 					}
 }
-'''			
+
 sensor[1] = {'name':'demosensor',
 			'sensor_class':'demosensor',
 			'bus':'i2c',
@@ -114,15 +109,8 @@ sensor[2] = {'name':'Licht',
 			'bus':'i2c',
 			'data':{'adresse':0x23}
 			}
-'''
-sensordic = {1:[0x23,'options',bh1750(),'licht'],
-2:[0x40,'options',htu21d(),'temperatur_feuchtigkeit']
-}'''
-=======
-			'ic_class':'demoic'}
-			
-			
+
 sensordic = {1:[0x23,'options',bh1750(),'licht'],
 2:[0x40,'options',htu21d(),'temperatur_feuchtigkeit']
 }
->>>>>>> refs/remotes/origin/master
+'''

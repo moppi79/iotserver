@@ -1,6 +1,8 @@
 from multiprocessing import Process, Queue
 import os, time, random, datetime, json
 
+from time_managent import time_managent
+
 #import all data from plugin Dictonary
 for a in os.listdir("plugin"):
 	if a != '__pycache__':
@@ -71,13 +73,14 @@ class thread_class:
 		return(ret)
 		
 
-	def run(self,in_data,out_data,config,girdata,logger):
+	def run(self,data_in,data_out,config,girdata,logger,name):
 		
 		self.ram = {}
 		self.ram['config'] = config
 		global gir
 		Thread_ram = {} 
-		
+		print('hier config')
+		print(config)
 		thread_run = eval(self.ram['config']['name']+'()')
 		
 		if girdata == '':
@@ -93,6 +96,22 @@ class thread_class:
 		
 		time.sleep(1) ###### muss am schluss entfernt werden
 		copx = dict_copy()
+		
+		##time management
+		a = time_managent()
+		counter_time = 0 #countes aktitäten
+		time_vars = {}
+		time_vars['ts'] = ''
+		time_vars['freq'] = 6
+		time_vars['wake'] = 1
+		time_vars['e-save'] = 0
+		
+		time_vars_copy = time_vars.copy()
+		thread_name = name
+		data_out.put({'global':'wake','value':'1','name':thread_name})#set your name 
+		##time management
+		
+		
 		while True:
 			
 			no_direkt_data = 1
@@ -101,14 +120,24 @@ class thread_class:
 			
 			returndata = ''
 			z = 1
-			if in_data.empty() != True:
+			if data_in.empty() != True:
 				
 				array = {}
-				while in_data.qsize() != 0: #alle verfügabren daten abrufen 
-					#logger.error('z!=1')
-					data1 = in_data.get()
-					array[z] = data1
-					z = z + 1
+				while data_in.qsize() != 0: #alle verfügabren daten abrufen 
+					data1 = data_in.get()
+					##time management
+					if 'global' in data1:#host in data
+						#print(data1)
+						#print ('#############data in############')
+						#print (data1)
+						time_vars[data1['global']] = data1['value']
+						
+						
+					##time management
+					else:#standart ISS
+						counter_time += 1 # counter aktivität
+						z = z + 1
+						array[z] = data1
 			
 			if z != 1:
 				#logger.error('z!=1')
@@ -126,6 +155,7 @@ class thread_class:
 					else:
 						print ('############### with data #############')
 						no_direkt_data = 0
+						counter_time += 1 #time counter
 						returndata = thread_run.work(array[x]['gir'],gir,Thread_ram,logger) #Send Direkt Data to Thread 
 
 						Thread_ram = returndata[1]
@@ -135,7 +165,7 @@ class thread_class:
 								#print ('########### return data ############')
 								#print (returndata[0][h])
 								#print ('########### return data ############')
-								out_data.put(returndata[0][h]) #send data to clientserver
+								data_out.put(returndata[0][h]) #send data to clientserver
 										
 							returndata.clear()
 						
@@ -155,12 +185,58 @@ class thread_class:
 					
 					for h in returndata[0]:
 						#print (returndata)
-						out_data.put(returndata[0][h]) #send data to clientserver
+						counter_time += 1 # counter aktivität
+						data_out.put(returndata[0][h]) #send data to clientserver
 								
 					returndata.clear()
 
-
-			time.sleep(0.05)  #### should be triggert by thread him self .... must be correctet later
+			
+			######## System Timer  ENDE #######	
+			####!!!!!!!!!!!!!!
+			# immer durch rechenen ob der E mode deakjtivert werdenb muss 
+			# dann schickt er message an host das er alle auf wecken muss 
+			# selbst kann er das E auf heben für ein ppaar durch gänge und dann wieder E
+			#####!!!!!!!!!!!!!!
+			if counter_time >=2 :#wake up
+				if time_vars['wake'] != 1:
+					time_vars['wake'] = 1
+					data_out.put({'global':'wake','value':1,'name':thread_name})
+					a.set_e_save(0)
+				counter_time -= 1
+			else:
+				if time_vars['wake'] == 1:#Sleep now
+					time_vars['wake'] = 0
+					data_out.put({'global':'wake','value':0,'name':thread_name})
+					if time_vars['e-save'] == 1:
+						a.set_e_save(1)
+			
+			counter_time -= 1
+			if time_vars['ts'] == '':
+				data_out.put({'global':'data','value':'need','name':thread_name})
+			
+			if time_vars['freq'] != time_vars_copy['freq']:
+				a.set_freq(time_vars['freq'])
+				time_vars_copy['freq'] = time_vars['freq']
+				data_out.put({'global':'freq','value':time_vars['freq'],'name':thread_name})
+			
+			if time_vars['e-save'] != time_vars_copy['e-save']:
+				#self.engerie_saveprint('ESAVE VARIABLE: {}'.format(time_vars['e-save']))
+				a.set_e_save(time_vars['e-save'])
+				time_vars_copy['e-save'] = time_vars['e-save']
+				data_out.put({'global':'e-save','value':time_vars['e-save'],'name':thread_name})
+			
+			
+			error = a.pause()
+			
+			if 'timeslot' in error:
+				a.set_freq(time_vars['freq'])
+				a.add_timeslot(time_vars['ts'])
+			
+			if counter_time > 0 :
+				counter_time = 0
+				
+			######## System Timer  ENDE #######	
+			#time.sleep(0.05)  #### should be triggert by thread him self .... must be correctet later
 
 	def time (self,data):
 		if data == 'get':

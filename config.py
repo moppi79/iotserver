@@ -1,10 +1,6 @@
 
 [GLOBAL]
-<<<<<<< HEAD
-workingpath = /net/html/iotserver/
-=======
-workingpath = /net/html/iotserver
->>>>>>> refs/remotes/origin/master
+workingpath = /net/html/iotserver/iotslave
 
 
 #################################################
@@ -15,6 +11,7 @@ workingpath = /net/html/iotserver
 
 
 [SERVER]
+Name = home_server
 Adress = 192.168.1.30
 Port = 5050
 logname = Server.log
@@ -55,12 +52,9 @@ switch_port = 1
 
 [sensors]
 
-<<<<<<< HEAD
 #time in Seconds
 update = 4
 
-=======
->>>>>>> refs/remotes/origin/master
 demosensor = 1
 bh1750 = 1
 htu21d = 1
@@ -72,3 +66,11 @@ htu21d = 1
 mcp23017 = 1
 pcf8574 = 1
 demoic = 1
+
+##############Plugins############################
+
+[plugin]
+
+basic2 = 1
+text_display = 1
+io_basic = 1
